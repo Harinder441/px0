@@ -22,9 +22,7 @@ export const SEL_KEYS = {
   KeyC: 'copy-ref',
   KeyA: 'copy-agent',
   KeyU: 'usages',
-  KeyE: 'agent-edit',
   KeyR: 'review-comment',
-  KeyT: 'thread',
   KeyM: 'copy-markdown',
   KeyS: 'copy-source',
 };
@@ -407,8 +405,6 @@ export function openLineMenu(info, x, y) {
 // Exported so pr.js can append "Add Review Comment" in a PR review session
 // without selbar needing to know PR review exists.
 export const SEL_MENU_ITEMS = [
-  { sel: 'thread', label: 'Start Agent Thread', keys: 'Alt+T' },
-  { sel: 'agent-edit', label: 'Edit Inline', keys: 'Alt+E' },
   { sel: 'copy-source', label: 'Copy Source', keys: 'Mod+C', forCode: true },
   { sel: 'copy-preview-text', label: 'Copy Formatted Text', keys: 'Mod+C', forPreview: true },
   { sel: 'copy-markdown', label: 'Copy Raw Markdown', keys: 'Alt+M', forMarkdown: true },

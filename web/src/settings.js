@@ -257,33 +257,6 @@ const BUILTIN_SCHEMA = [
     default: true
   },
   {
-    key: "agent.harness",
-    title: "Coding Harness",
-    description: "Coding agent harness invoked for code edits (e.g. claude, gemini, cursor-agent, agy, opencode, codex, aider, goose).",
-    category: "Agent / AI",
-    type: "string",
-    default: ""
-  },
-  {
-    key: "agent.timeoutSeconds",
-    title: "Agent Timeout (Seconds)",
-    description: "Controls the maximum execution time in seconds for agent edits before canceling.",
-    category: "Agent / AI",
-    type: "number",
-    default: 120.0,
-    min: 10.0,
-    max: 600.0,
-    step: 10.0
-  },
-  {
-    key: "agent.autoAcceptEdits",
-    title: "Auto Accept Agent Edits",
-    description: "Controls whether agent-generated code diffs are accepted without manual confirmation.",
-    category: "Agent / AI",
-    type: "boolean",
-    default: false
-  },
-  {
     key: "server.basePath",
     title: "Base Path",
     description: "Base URL path prefix for the px0 server and web interface (e.g. /rev-123/).",
@@ -317,7 +290,6 @@ const COMMONLY_USED_KEYS = new Set([
   'explorer.autoRelveal',
   'search.smartCase',
   'lsp.hover.enabled',
-  'agent.harness',
 ]);
 
 export function isAutoRevealEnabled() {

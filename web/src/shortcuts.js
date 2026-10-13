@@ -21,7 +21,6 @@ import { toggleDiff } from './diff.js';
 import { openSettings, closeSettings, isSettingsOpen } from './settings.js';
 import { handleVimKeyDown, isVimEnabled, getVimMode, showVimHelp, closeVimHelp } from './vim.js';
 import { handleImageKey } from './imageview.js';
-import { submitBatch } from './agent.js';
 import { reindexWorkspace } from './panels.js';
 
 /* Each entry lists alternative combos, written as for keyLabel in state.js so
@@ -44,8 +43,6 @@ export const SHORTCUTS = [
   [['Mod+A'], 'Select whole file'],
   [['Mod+C'], 'Copy selection (source / formatted text)'],
   [['Alt+C', 'Alt+A'], 'Copy selection ref / with context'], [['Alt+U'], 'Find usages of selection'],
-  [['Alt+E'], 'Edit selection inline'],
-  [['Alt+T'], 'Start a thread on the selection'],
   [['Right click'], 'Selection actions at the pointer'],
   [['Mod+Home|Mod+Up', 'Mod+End|Mod+Down'], 'Top / bottom of file'],
   [['Home|Mod+Left', 'End|Mod+Right'], 'Start / end of line'],
@@ -183,15 +180,6 @@ export function initShortcuts() {
       e.preventDefault();
       togglePreview();
       return;
-    }
-
-    if (mod && e.shiftKey && !e.altKey && e.key === 'Enter') {
-      const b = $('#agentbox');
-      if (b && !b.hidden) {
-        e.preventDefault();
-        submitBatch();
-        return;
-      }
     }
 
     if (!mod && e.key === 'Enter' && !findbar.hidden) {

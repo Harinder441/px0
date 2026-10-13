@@ -296,12 +296,6 @@ export function handleVimKeyDown(e) {
       exitVisualMode();
       return true;
     }
-    if (e.key === 'e' || e.key === 'c') {
-      e.preventDefault();
-      runSelectionAction('agent-edit');
-      exitVisualMode();
-      return true;
-    }
     if (e.key === 'u') {
       e.preventDefault();
       runSelectionAction('usages');
@@ -632,11 +626,10 @@ export const VIM_SHORTCUT_SECTIONS = [
     ]
   },
   {
-    title: 'Visual Mode & AI Agent Actions',
+    title: 'Visual Mode Actions',
     items: [
       [['v'], 'Character-wise visual selection'],
       [['V'], 'Line-wise visual selection'],
-      [['e', 'c'], 'Edit selection inline with AI coding agent'],
       [['y'], 'Yank (copy) code to clipboard'],
       [['Y'], 'Yank reference (file:line-range)'],
       [['u'], 'Find usages of selected symbol'],

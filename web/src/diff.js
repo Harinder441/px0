@@ -493,7 +493,7 @@ function lineCell(n, reviewable = true) {
     const btn = document.createElement('span');
     btn.className = 'line-btn';
     btn.setAttribute('role', 'button');
-    btn.title = (S.meta?.pr && reviewable) ? 'Thread, review comment and line actions' : 'Thread and line actions';
+    btn.title = (S.meta?.pr && reviewable) ? 'Review comment and line actions' : 'Line actions';
     btn.textContent = 'Edit';
     el.append(btn);
   }

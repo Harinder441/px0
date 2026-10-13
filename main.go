@@ -36,14 +36,12 @@ func main() {
 		noGit        = flag.Bool("no-git", false, "disable git awareness")
 		showVer      = flag.Bool("version", false, "print version and exit")
 		showVerShort = flag.Bool("v", false, "print version and exit (shorthand)")
-		doUpdate     = flag.Bool("update", false, "check for and install latest version of px0")
-		noUpdate     = flag.Bool("no-update", false, "do not auto-update px0 on startup")
+		_            = flag.Bool("no-update", false, "accepted for compatibility; this fork never self-updates")
 		noColor      = flag.Bool("no-color", false, "disable colour output")
 		quiet        = flag.Bool("quiet", false, "suppress narration")
-		verbose      = flag.Bool("verbose", false, "log startup steps, requests, searches, symbols, and agent prompts to terminal")
+		verbose      = flag.Bool("verbose", false, "log startup steps, requests, searches and symbols to terminal")
 		noTelemetry  = flag.Bool("no-telemetry", false, "disable anonymous usage telemetry")
-		agentCmd     = flag.String("agent", "", "pin the coding harness used for edits (claude, gemini, cursor-agent, agy, opencode, codex, aider, goose, or a command template containing {prompt}); detected and chosen in the UI when omitted")
-		noAgent      = flag.Bool("no-agent", false, "do not offer editing through a coding harness")
+		_            = flag.Bool("no-agent", false, "accepted for compatibility; this fork has no coding-harness features")
 		_            = flag.Bool("y", false, "answer yes to prompts (deprecated; PRs are always opened without prompt)")
 		_            = flag.Bool("yes", false, "answer yes to prompts (alias for -y)")
 		basePathFlag = flag.String("base-path", "", "base URL path prefix to serve endpoints and assets from (e.g. /rev-123/)")
@@ -70,13 +68,6 @@ func main() {
 
 	if *showVer || *showVerShort || (flag.NArg() == 1 && flag.Arg(0) == "version") {
 		fmt.Printf("px0 %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
-		return
-	}
-
-	if *doUpdate {
-		if err := runSelfUpdate(version); err != nil {
-			fatal(err)
-		}
 		return
 	}
 
@@ -159,14 +150,6 @@ func main() {
 	if pr != nil {
 		pxSrv.SetPR(pr)
 	}
-	var agent *agentManager
-	if !*noAgent {
-		agent, err = newAgentManager(root, *agentCmd, lsp)
-		if err != nil {
-			fatal(fmt.Errorf("-agent: %w", err))
-		}
-		pxSrv.SetAgent(agent)
-	}
 	initDur := time.Since(tInit)
 
 	srv := &http.Server{Handler: pxSrv}
@@ -226,28 +209,6 @@ func main() {
 		} else if uiVerbose {
 			uiStatus("ok", "checked language servers (none installed)", fmtDuration(lspDur), 0, os.Stdout)
 		}
-		if agent != nil {
-			tAgent := time.Now()
-			var found []string
-			for _, h := range agent.Detect() {
-				if h.Installed {
-					item := h.Name
-					if h.Model != "" {
-						item = fmt.Sprintf("%s (%s)", h.Name, h.Model)
-					}
-					found = append(found, item)
-				}
-			}
-			agentDur := time.Since(tAgent)
-			if uiVerbose {
-				if len(found) > 0 {
-					uiStatus("ok", fmt.Sprintf("detected coding harnesses: %s", strings.Join(found, ", ")), fmtDuration(agentDur), 0, os.Stdout)
-				} else {
-					uiStatus("ok", "checked coding harnesses (none found)", fmtDuration(agentDur), 0, os.Stdout)
-				}
-			}
-		}
-
 		tel.Track("session_started", map[string]any{
 			"files_bucket": filesBucket(n),
 			"index_ms":     ms,
@@ -255,12 +216,6 @@ func main() {
 			"has_lsp":      len(lsp.Available()) > 0,
 		})
 	}()
-
-	// Check for updates in the background once the server is already up, so
-	// px0 never makes a network call before serving the first request.
-	if !*noUpdate {
-		go autoUpdate(version)
-	}
 
 	// Language servers are children that can hold gigabytes. Shut them down on
 	// the way out rather than leaving them for the OS to reap.
@@ -283,8 +238,6 @@ func main() {
 
 	err = srv.Serve(ln)
 	lsp.Close()
-	agent.Close()
-	pxSrv.CloseThreads()
 	pr.Close()
 
 	if interrupted {
