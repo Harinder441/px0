@@ -1,7 +1,7 @@
 // web/src/tabs.js
 import { $, esc, S, doc_, api, apiPost, apiPostJson, LH, CHUNK, withKeys } from './state.js';
 import { emit } from './bus.js';
-import { vp, sizer, rowsEl, editor } from './ui.js';
+import { vp, sizer, rowsEl, editor, copyToClipboard } from './ui.js';
 import { render, layout, refineChunk } from './renderer.js';
 import { updateStatus, setStatusNote, refreshMetrics } from './status.js';
 import { pushHistory } from './history.js';
@@ -40,6 +40,25 @@ function closeTabsForAction(action, index) {
   closeTabs(targets);
 }
 
+function absolutePath(path) {
+  if (path.startsWith('/')) return path;
+  const root = (S.meta?.root || '').replace(/\/+$/, '');
+  return root ? root + '/' + path : path;
+}
+
+const TAB_COPY = {
+  'copy-name': t => t.name,
+  'copy-relative': t => t.path,
+  'copy-absolute': t => absolutePath(t.path),
+};
+
+const isHtmlTab = t => /\.html?$/i.test(t.path) && !t.path.startsWith('/') && !t.deleted;
+
+function openInBrowser(t) {
+  const rel = t.path.split('/').map(encodeURIComponent).join('/');
+  window.open(new URL('view/' + rel, document.baseURI || location.origin + '/').href, '_blank', 'noopener');
+}
+
 function openTabMenu(index, x, y) {
   const actions = [
     { action: 'close', label: 'Close', disabled: false },
@@ -47,9 +66,20 @@ function openTabMenu(index, x, y) {
     { action: 'others', label: 'Close Others', disabled: S.tabs.length < 2 },
     { action: 'right', label: 'Close to the Right', disabled: index === S.tabs.length - 1 },
     { action: 'left', label: 'Close to the Left', disabled: index === 0 },
+    { sep: true },
+    { action: 'copy-name', label: 'Copy File Name', disabled: false },
+    { action: 'copy-relative', label: 'Copy Relative Path', disabled: false },
+    { action: 'copy-absolute', label: 'Copy Absolute Path', disabled: false },
   ];
   tabMenu.replaceChildren();
-  for (const { action, label, disabled } of actions) {
+  for (const { action, label, disabled, sep } of actions) {
+    if (sep) {
+      const line = document.createElement('div');
+      line.className = 'tab-menu-sep';
+      line.setAttribute('role', 'separator');
+      tabMenu.append(line);
+      continue;
+    }
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'sel-menu-item';
@@ -476,6 +506,7 @@ export function drawTabs() {
     '<span class="tn">' + esc(t.name) + '</span>' +
     // Pinned to a commit: the tab is not the working tree, and it should say so.
     (t.diffRef ? '<span class="tab-ref">@' + esc(t.diffRef.slice(0, 7)) + '</span>' : '') +
+    (isHtmlTab(t) ? '<span class="x tab-view" data-view="' + i + '" title="Open in a new browser tab"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M4 2H2v6h6V6M6 2h2v2M8 2 4.5 5.5"/></svg></span>' : '') +
     '<span class="x" data-close="' + i + '" title="' + withKeys('Close tab ({Alt+W})') + '"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 2l6 6M8 2l-6 6"/></svg></span></div>').join('');
   const act = $('#tabs .tab.active');
   if (act) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -561,12 +592,20 @@ export function initTabs() {
     if (!button || button.disabled) return;
     const index = tabMenuIndex;
     closeTabMenu();
+    const copy = TAB_COPY[button.dataset.tabAction];
+    if (copy) {
+      const t = S.tabs[index];
+      if (t) { const text = copy(t); copyToClipboard(text, 'Copied ' + text); }
+      return;
+    }
     closeTabsForAction(button.dataset.tabAction, index);
   });
   $('#tabs').addEventListener('click', e => {
     closeTabMenu();
     const x = e.target.closest('[data-close]');
     if (x) { closeTab(+x.dataset.close); return; }
+    const v = e.target.closest('[data-view]');
+    if (v) { const t = S.tabs[+v.dataset.view]; if (t) openInBrowser(t); return; }
     const t = e.target.closest('.tab');
     if (t) switchTab(+t.dataset.i);
   });

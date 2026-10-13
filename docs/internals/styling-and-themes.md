@@ -10,7 +10,7 @@ px0 reads every colour in the user interface through a CSS custom property, know
 - `web/themes/<id>.css`: Each theme resides in its own file under [`web/themes/`](../../web/themes/), containing a single rule for `:root[data-theme="<id>"]`. The filename without extension acts as the theme ID.
 - Dynamic Concatenation (`/static/themes.css`): The Go server concatenates every file matching `web/themes/*.css` in alphanumeric order and serves the result dynamically at `/static/themes.css`. [`web/index.html`](../../web/index.html) links this file immediately after `style.css`.
 - Client-Side Discovery: At application boot, [`web/src/theme.js`](../../web/src/theme.js) scans the loaded document stylesheets for rules matching `:root[data-theme="<id>"]`. It extracts the human-readable display name from `--theme-name` and the color scheme hint from `color-scheme`.
-- State Persistence: The active theme is applied via the `data-theme` attribute on the `<html>` root element and persisted in `localStorage` under `px0.theme`. If a saved theme is removed, px0 falls back to the default `catppuccin-mocha`.
+- State Persistence: The active theme is applied via the `data-theme` attribute on the `<html>` root element and persisted in `localStorage` under `px0.theme`. If a saved theme is removed, px0 falls back to the default `hos`.
 
 > [!NOTE]
 > Theme rules intentionally use `:root[data-theme="<id>"]` rather than a bare attribute selector `[data-theme="<id>"]`. The `:root` pseudo-class raises CSS specificity above the fallback rules in `style.css`, ensuring theme tokens always win regardless of stylesheet evaluation order.
@@ -22,7 +22,10 @@ The explorer header controls use the same tokenized `.mini` button style as Re-i
 | Name             | ID                 | Scheme | Inspiration / Palette                  |
 | ---------------- | ------------------ | ------ | -------------------------------------- |
 | Catppuccin Latte | `catppuccin-latte` | light  | Catppuccin palette (contrast-tuned)    |
-| Catppuccin Mocha | `catppuccin-mocha` | dark   | Catppuccin palette (default px0 theme) |
+| Catppuccin Mocha | `catppuccin-mocha` | dark   | Catppuccin palette                     |
+| hos Dark         | `hos-dark`         | dark   | hos palette, Overpass fonts            |
+| hos (follows system) | `hos`          | light dark | hos palette; follows OS preference (default px0 theme) |
+| hos Light        | `hos-light`        | light  | hos palette, Overpass fonts            |
 | Dracula          | `dracula`          | dark   | Classic Dracula palette                |
 | GitHub Dark      | `github-dark`      | dark   | GitHub dark default                    |
 | Gruvbox Dark     | `gruvbox-dark`     | dark   | Gruvbox dark retro groove              |

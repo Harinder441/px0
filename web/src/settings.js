@@ -148,8 +148,9 @@ const BUILTIN_SCHEMA = [
     description: "Specifies the color theme used in the workbench.",
     category: "Workbench",
     type: "select",
-    default: "catppuccin-mocha",
+    default: "hos",
     options: [
+      "hos", "hos-dark", "hos-light",
       "catppuccin-mocha", "catppuccin-latte",
       "github-dark", "dark", "light",
       "dracula", "gruvbox-dark", "gruvbox-light",

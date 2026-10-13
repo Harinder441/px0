@@ -1719,6 +1719,7 @@ kbd {
   user-select: none;
 }
 #sel-menu[hidden], #tab-menu[hidden], #tree-menu[hidden] { display: none; }
+.tab-menu-sep { height: 1px; margin: 3px 4px; background: var(--line); }
 .sel-menu-item {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 5px 8px; border-radius: var(--r); text-align: left;

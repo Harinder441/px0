@@ -159,8 +159,9 @@ var settingsSchema = []settingSchemaItem{
 		Description: "Specifies the color theme used in the workbench.",
 		Category:    "Workbench",
 		Type:        "select",
-		Default:     "catppuccin-mocha",
+		Default:     "hos",
 		Options: []string{
+			"hos", "hos-dark", "hos-light",
 			"catppuccin-mocha", "catppuccin-latte",
 			"github-dark", "dark", "light",
 			"dracula", "gruvbox-dark", "gruvbox-light",

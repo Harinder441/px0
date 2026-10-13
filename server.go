@@ -126,6 +126,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc(s.routePath("/api/file"), s.handleFile)
 	s.mux.HandleFunc(s.routePath("/api/close"), s.handleClose)
 	s.mux.HandleFunc(s.routePath("/api/raw"), s.handleRaw)
+	s.mux.HandleFunc(s.routePath("/view/"), s.handleView)
 	s.mux.HandleFunc(s.routePath("/api/markdown"), s.handleMarkdown)
 	s.mux.HandleFunc(s.routePath("/api/table"), s.handleTable)
 	s.mux.HandleFunc(s.routePath("/api/diff"), s.handleDiff)
@@ -1308,6 +1309,18 @@ func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setRawHeaders(w, rel)
+	http.ServeFile(w, r, abs)
+}
+
+// The sandbox CSP gives the page an opaque origin so it cannot drive px0's own API.
+func (s *Server) handleView(w http.ResponseWriter, r *http.Request) {
+	abs, _, ok := s.safePath(strings.TrimPrefix(r.URL.Path, s.routePath("/view/")))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Security-Policy", "sandbox allow-scripts allow-popups allow-forms allow-modals")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeFile(w, r, abs)
 }
 

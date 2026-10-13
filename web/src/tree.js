@@ -263,6 +263,15 @@ export async function revealDir(dir) {
   persistOpenDirs();
 }
 
+export async function focusDir(dir) {
+  await revealDir(dir);
+  const row = treeEl.querySelector('[data-dir="' + CSS.escape(dir) + '"]');
+  if (!row) return;
+  $$('.tr.sel', treeEl).forEach(x => x.classList.remove('sel'));
+  row.classList.add('sel');
+  row.scrollIntoView({ block: 'start' });
+}
+
 export async function revealFile(path) {
   if (!path) return;
   path = path.replace(/^\/+/, '');

@@ -14,11 +14,14 @@ px0 provides instant theme switching with zero browser reloading. Themes are imp
 
 ## Built-In Themes
 
-px0 ships with 14 curated themes ready for immediate use:
+px0 ships with 17 curated themes ready for immediate use:
 
 | Theme Name | Identifier | Aesthetic & Style |
 | :--- | :--- | :--- |
-| **Catppuccin Mocha** | `catppuccin-mocha` | Soothing, low-contrast dark pastel palette (Default) |
+| **hos (follows system)** | `hos` | hos palette and Overpass fonts; dark, or light when the OS prefers light (Default) |
+| **hos Dark** | `hos-dark` | hos palette, always dark |
+| **hos Light** | `hos-light` | hos palette, always light |
+| **Catppuccin Mocha** | `catppuccin-mocha` | Soothing, low-contrast dark pastel palette |
 | **Catppuccin Latte** | `catppuccin-latte` | Warm, low-contrast light pastel palette |
 | **GitHub Dark** | `github-dark` | Classic GitHub Dark theme |
 | **Tokyo Night** | `tokyo-night` | Celebrated deep blue and neon palette |

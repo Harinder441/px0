@@ -1,0 +1,97 @@
+/* hos palette; "hos" follows the OS light/dark preference, "hos-dark"/"hos-light" pin one side. */
+@font-face {
+  font-family: 'Overpass Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('vendor/fonts/overpass-latin-wght-normal.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Overpass Mono Variable';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('vendor/fonts/overpass-mono-latin-wght-normal.woff2') format('woff2-variations');
+}
+/* Overpass draws U+00B7 with zero advance; take the dot from a system face. */
+@font-face {
+  font-family: 'Hos Separator';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: local('Helvetica Neue'), local('HelveticaNeue'), local('Helvetica'), local('Arial');
+  unicode-range: U+00B7;
+}
+
+:root[data-theme="hos-dark"], :root[data-theme="hos"] {
+  --theme-name: "hos Dark";
+  color-scheme: dark;
+  --ui: 'Hos Separator', 'Overpass Variable', 'Overpass', system-ui, -apple-system, sans-serif;
+  --mono: 'Hos Separator', 'Overpass Mono Variable', 'Overpass Mono', ui-monospace, Menlo, monospace;
+
+  /* surfaces: asphalt editor, kerb sidebar, shoulder floating, raised hover */
+  --bg: #22272b; --bg2: #1d2226; --bg3: #2c3237; --bg4: #343b41;
+  --fg: #ecefea; --dim: #a7aba9; --faint: #7f8584;
+  --line: #383e42; --accent: #0f7a57; --accent-fg: #5cc79a; --on-accent: #ffffff;
+  --sel: #1d4439; --mark: rgba(242, 176, 30, 0.28); --mark-active: #f2b01e; --on-mark-active: #1c2125; --cur: #2a2f33;
+  --shadow: 0 4px 16px rgba(10, 12, 14, 0.6);
+  --warn: #f2b01e;
+
+  --k: #5cc79a; --kt: #6fc2d6; --nf: #f2c14e; --nc: #f2b01e; --nb: #6fc2d6;
+  --nv: #ecefea; --no: #b9a5e8; --na: #6fc2d6; --nt: #5cc79a; --nd: #b9a5e8;
+  --np: #a9d8e3; --s: #eba37f; --m: #b9a5e8; --o: #c3c7c4; --p: #a7aba9;
+  --c: #858d89; --cp: #f07a7e; --err: #f07a7e;
+
+  --gi: #5cc79a; --gd: #f07a7e;
+  --gi-bg: rgba(15, 122, 87, 0.18); --gd-bg: rgba(229, 72, 77, 0.14);
+}
+
+:root[data-theme="hos"] {
+  --theme-name: "hos (follows system)";
+  color-scheme: light dark;
+}
+
+:root[data-theme="hos-light"] {
+  --theme-name: "hos Light";
+  color-scheme: light;
+  --ui: 'Hos Separator', 'Overpass Variable', 'Overpass', system-ui, -apple-system, sans-serif;
+  --mono: 'Hos Separator', 'Overpass Mono Variable', 'Overpass Mono', ui-monospace, Menlo, monospace;
+
+  --bg: #e8ecea; --bg2: #dde3e0; --bg3: #f8faf9; --bg4: #d2d9d6;
+  --fg: #1c2125; --dim: #494e50; --faint: #6c7173;
+  --line: #c8cfcc; --accent: #0b6b4c; --accent-fg: #0b6b4c; --on-accent: #ffffff;
+  --sel: #bfd8cd; --mark: rgba(242, 176, 30, 0.38); --mark-active: #f2b01e; --on-mark-active: #1c2125; --cur: #dfe4e2;
+  --shadow: 0 4px 16px rgba(28, 33, 37, 0.16);
+  --warn: #8a5a00;
+
+  --k: #0b6b4c; --kt: #11677d; --nf: #8a5a00; --nc: #7a4d00; --nb: #11677d;
+  --nv: #1c2125; --no: #6b4fb3; --na: #11677d; --nt: #0b6b4c; --nd: #6b4fb3;
+  --np: #24576a; --s: #a1442a; --m: #6b4fb3; --o: #3d4448; --p: #494e50;
+  --c: #646c6a; --cp: #b02a31; --err: #b02a31;
+
+  --gi: #0b6b4c; --gd: #b02a31;
+  --gi-bg: rgba(11, 107, 76, 0.1); --gd-bg: rgba(201, 50, 58, 0.09);
+}
+:root[data-theme="hos-light"] .logo-dark { display: none; }
+:root[data-theme="hos-light"] .logo-light { display: block; }
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="hos"] {
+    --bg: #e8ecea; --bg2: #dde3e0; --bg3: #f8faf9; --bg4: #d2d9d6;
+    --fg: #1c2125; --dim: #494e50; --faint: #6c7173;
+    --line: #c8cfcc; --accent: #0b6b4c; --accent-fg: #0b6b4c; --on-accent: #ffffff;
+    --sel: #bfd8cd; --mark: rgba(242, 176, 30, 0.38); --mark-active: #f2b01e; --on-mark-active: #1c2125; --cur: #dfe4e2;
+    --shadow: 0 4px 16px rgba(28, 33, 37, 0.16);
+    --warn: #8a5a00;
+
+    --k: #0b6b4c; --kt: #11677d; --nf: #8a5a00; --nc: #7a4d00; --nb: #11677d;
+    --nv: #1c2125; --no: #6b4fb3; --na: #11677d; --nt: #0b6b4c; --nd: #6b4fb3;
+    --np: #24576a; --s: #a1442a; --m: #6b4fb3; --o: #3d4448; --p: #494e50;
+    --c: #646c6a; --cp: #b02a31; --err: #b02a31;
+
+    --gi: #0b6b4c; --gd: #b02a31;
+    --gi-bg: rgba(11, 107, 76, 0.1); --gd-bg: rgba(201, 50, 58, 0.09);
+  }
+  :root[data-theme="hos"] .logo-dark { display: none; }
+  :root[data-theme="hos"] .logo-light { display: block; }
+}

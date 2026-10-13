@@ -5,10 +5,10 @@ import { initTabs, openFile, restoreWorkspaceTabs, switchTab } from './tabs.js';
 import { initCursor } from './cursor.js';
 import { initHover } from './hover.js';
 import { initSelectionBar } from './selbar.js';
-import { drawTree, treeEl, initTree, revealFile, refreshTree, restoreOpenDirs, setSidebarMode, updateSidebarToggleState, hasGitView } from './tree.js';
+import { drawTree, treeEl, initTree, revealFile, focusDir, refreshTree, restoreOpenDirs, setSidebarMode, updateSidebarToggleState, hasGitView } from './tree.js';
 import { initSearch } from './search.js';
 import { initOutline } from './outline.js';
-import { initPanels } from './panels.js';
+import { initPanels, showPanel } from './panels.js';
 import { initInspector, showRightInspector } from './inspector.js';
 import { initCalls } from './calls.js';
 import { initFind } from './find.js';
@@ -140,8 +140,17 @@ initPRScope();
   const initialPath = params.get('path');
   const initialLine = parseInt(params.get('line'), 10) || undefined;
   if (initialPath) {
-    await openFile(initialPath, { line: initialLine });
-    await revealFile(initialPath);
+    const target = initialPath.replace(/^\/+|\/+$/g, '');
+    await showPanel('files');
+    const parent = target.includes('/') ? target.slice(0, target.lastIndexOf('/')) : '';
+    const isDir = !!target && await api('/api/tree', { dir: parent })
+      .then(j => j.children.some(c => c.dir && c.path === target), () => false);
+    if (isDir) {
+      await focusDir(target);
+    } else {
+      await openFile(target, { line: initialLine });
+      await revealFile(target);
+    }
     try {
       const u = new URL(window.location.href);
       u.searchParams.delete('path');
