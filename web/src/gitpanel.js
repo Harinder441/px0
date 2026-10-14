@@ -1,5 +1,5 @@
 // web/src/gitpanel.js
-// Sidebar git panel: stage/commit/push/pull, shown whenever the workspace is
+// Sidebar git panel: push/pull and recent commits, shown whenever the workspace is
 // a git repo (same gate as the diff-view toggle in status.js). In a PR
 // review session (S.meta.pr set), Push/Pull target the PR's actual head
 // branch instead of the checkout's own remote -- see pr.go's Push/Pull.
@@ -14,7 +14,6 @@ import { refreshUnpushed } from './unpushed.js';
 import { openFile } from './tabs.js';
 import { on } from './bus.js';
 import { commitFileRows, COMMIT_FILES_PAGE, loadCommitFiles, cachedCommitFiles } from './commitfiles.js';
-import { triggerRefresh } from './gitstream.js';
 
 const panel = () => $('#git-panel');
 
@@ -50,27 +49,11 @@ export function initGitPanel() {
     });
   }
 
-  $('#git-stage-all')?.addEventListener('click', doStageAll);
-  $('#git-commit')?.addEventListener('click', doCommit);
-  $('#git-commit-msg')?.addEventListener('input', () => $('#git-commit-msg')?.classList.remove('warn-border'));
   $('#git-push')?.addEventListener('click', doPush);
   $('#git-pull')?.addEventListener('click', doPull);
-  $('#git-generate-msg')?.addEventListener('click', doCommitWithAI);
   $('#git-token-nudge')?.addEventListener('click', () => {
     showToast('!', 'No GitHub token found: set GITHUB_TOKEN, set GH_TOKEN, or run `gh auth login` -- or add one below.', 5000);
     openSettings('ui', 'GitHub', 'github.token');
-  });
-  $('#git-write-msg-link')?.addEventListener('click', e => {
-    e.preventDefault();
-    toggleCommitMsgBox();
-  });
-  $('#git-generate-link')?.addEventListener('click', e => {
-    e.preventDefault();
-    doGenerateMessage();
-  });
-  $('#git-instructions-link')?.addEventListener('click', e => {
-    e.preventDefault();
-    openSettings('ui', 'Git & Diff', 'git.commitMessageInstruction');
   });
   $('#git-see-all-commits')?.addEventListener('click', handleSeeAllCommits);
   initCommitList();
@@ -94,8 +77,7 @@ function updateGitPanelVisibility() {
 }
 
 // Called from gitstream.js's handleGitStatus with each SSE/refresh payload,
-// so the branch name and staged/changed counts stay live without a manual
-// reload.
+// so the branch name and changed count stay live without a manual reload.
 export function updateGitPanel(payload) {
   updateGitPanelVisibility();
   const branchEl = $('#git-branch');
@@ -108,27 +90,12 @@ export function updateGitPanel(payload) {
   const changed = payload?.gitChanges ?? (payload?.statuses ? Object.keys(payload.statuses).length : (S.meta?.gitChanges || 0));
   const countsEl = $('#git-counts');
   if (countsEl) {
-    countsEl.textContent = changed ? staged + ' / ' + changed + ' staged' : '';
+    countsEl.textContent = changed ? changed + ' changed' : '';
   }
 
-  // Lifecycle state management:
-  // Show commit section when there are uncommitted changes or staged files.
-  // When clean, hide commit section and show clean state message.
-  const hasChanges = changed > 0 || staged > 0;
-  const commitSection = $('#git-commit-section');
-  if (commitSection) {
-    commitSection.hidden = !hasChanges;
-  }
   const cleanState = $('#git-clean-state');
   if (cleanState) {
-    cleanState.hidden = hasChanges;
-  }
-
-  // Commit button is only enabled when something is staged
-  const commitBtn = $('#git-commit');
-  if (commitBtn) {
-    commitBtn.disabled = staged === 0;
-    commitBtn.title = staged === 0 ? 'Stage changes to commit' : 'Commit staged changes';
+    cleanState.hidden = changed > 0 || staged > 0;
   }
 
   // Push button is enabled only when there are unpushed commits (ahead > 0)
@@ -165,108 +132,6 @@ export function updateGitPanel(payload) {
     renderRecentCommits(payload.recentCommits);
   }
   updateSeeAllCommits(payload?.commitsUrl, payload?.recentCommits ? payload.recentCommits.length : undefined);
-}
-
-export async function stagePath(path) {
-  try {
-    await apiPostJson('/api/git/stage', { path });
-  } catch (e) {
-    showToast('!', e.message || 'Could not stage');
-  }
-}
-
-async function doStageAll() {
-  const btn = $('#git-stage-all');
-  const prevText = btn?.textContent || 'Stage All';
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Staging...';
-  }
-  try {
-    await apiPostJson('/api/git/stage', { path: '.' });
-    await triggerRefresh();
-    if (btn) {
-      btn.textContent = prevText;
-      flashActionSuccess(btn, 'Staged');
-    }
-  } catch (e) {
-    if (btn) btn.textContent = prevText;
-    showToast('!', e.message || 'Could not stage');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-export async function unstagePath(path) {
-  try {
-    await apiPostJson('/api/git/unstage', { path });
-    await triggerRefresh();
-  } catch (e) {
-    showToast('!', e.message || 'Could not unstage');
-  }
-}
-
-// The message box stays collapsed behind a text link since most commits use
-// "Stage all + Commit with AI"; open it on demand to write a message by hand.
-function toggleCommitMsgBox(open) {
-  const ta = $('#git-commit-msg');
-  const link = $('#git-write-msg-link');
-  if (!ta) return;
-  ta.hidden = open === undefined ? !ta.hidden : !open;
-  if (link) link.textContent = ta.hidden ? 'write message' : 'hide message';
-  const gen = $('#git-generate-link');
-  if (gen) {
-    gen.hidden = ta.hidden;
-    if (gen.previousElementSibling) gen.previousElementSibling.hidden = ta.hidden;
-  }
-  if (!ta.hidden) ta.focus();
-}
-
-async function doCommit() {
-  const ta = $('#git-commit-msg');
-  if (ta?.hidden) {
-    toggleCommitMsgBox(true);
-    return;
-  }
-  const message = ta ? ta.value.trim() : '';
-  if (!message) {
-    if (ta) {
-      ta.classList.remove('shake');
-      void ta.offsetWidth;
-      ta.classList.add('shake', 'warn-border');
-      setTimeout(() => ta.classList.remove('shake'), 350);
-      ta.focus();
-    }
-    showToast('!', 'Write a commit message first');
-    return;
-  }
-  const btn = $('#git-commit');
-  const prevText = btn?.textContent || 'Commit';
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Committing...';
-  }
-  try {
-    await apiPostJson('/api/git/commit', { message });
-    if (ta) {
-      ta.value = '';
-      ta.classList.remove('warn-border');
-    }
-    toggleCommitMsgBox(false);
-    showToast('✓', 'Committed');
-    if (btn) {
-      btn.textContent = prevText;
-      flashActionSuccess(btn, 'Committed');
-    }
-    await fetchRecentCommits();
-    await refreshUnpushed();
-    await triggerRefresh();
-  } catch (e) {
-    if (btn) btn.textContent = prevText;
-    showToast('!', e.message || 'Commit failed');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
 }
 
 async function doPush() {
@@ -324,157 +189,6 @@ async function doPull() {
   } finally {
     if (btn) btn.disabled = false;
   }
-}
-
-// Dispatches Stage + Commit with AI:
-// 1. Stages all changes
-// 2. Dispatches the selected coding harness to write a commit message
-//    (honoring git.commitMessageInstruction setting)
-// 3. Automatically commits with the generated message
-async function doCommitWithAI() {
-  const btn = $('#git-generate-msg');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Staging...';
-  }
-
-  // Stage all changes
-  try {
-    await apiPostJson('/api/git/stage', { path: '.' });
-  } catch (e) {
-    resetGenerateBtn(btn);
-    showToast('!', e.message || 'Could not stage changes');
-    return;
-  }
-
-  if (btn) {
-    btn.textContent = 'Writing message...';
-  }
-  let job;
-  try {
-    job = await apiPostJson('/api/git/commit-message', {});
-  } catch (e) {
-    resetGenerateBtn(btn);
-    showToast('!', e.message || 'Could not start generation');
-    return;
-  }
-  pollCommitMessage(job.id, {
-    progress: t => { if (btn) btn.textContent = t; },
-    reset: () => resetGenerateBtn(btn),
-    done: async text => {
-      const ta = $('#git-commit-msg');
-      if (ta) ta.value = text;
-      await commitWithMessage(text, btn);
-    },
-  });
-}
-
-function resetGenerateBtn(btn) {
-  if (!btn) return;
-  btn.disabled = false;
-  btn.textContent = 'Stage all + Commit with AI';
-}
-
-// Polls the commit-message job. `ui` abstracts the trigger element:
-// progress(text) shows status, reset() restores it, done(text) receives the
-// cleaned message (the AI button commits it; the link only fills the textarea).
-function pollCommitMessage(id, ui) {
-  const poll = async () => {
-    let j;
-    try {
-      j = await api('/api/agent/job?id=' + id);
-    } catch (e) {
-      ui.reset();
-      showToast('!', e.message || 'Generation failed');
-      return;
-    }
-    if (j.running) {
-      const sec = Math.round((j.ms || 0) / 1000);
-      ui.progress('Writing message... (' + sec + 's)');
-      setTimeout(poll, 600);
-      return;
-    }
-    if (j.error) {
-      ui.reset();
-      showToast('!', (j.harness || 'agent') + ': ' + j.error);
-      return;
-    }
-    const text = cleanCommitMessage(j.stdout || j.log || '');
-    if (!text) {
-      ui.reset();
-      showToast('!', 'Harness returned an empty message');
-      return;
-    }
-    await ui.done(text);
-  };
-  setTimeout(poll, 400);
-}
-
-// Generates a message for already-staged changes and fills the textarea
-// without committing, so it can be reviewed or edited first.
-async function doGenerateMessage() {
-  const link = $('#git-generate-link');
-  const ta = $('#git-commit-msg');
-  if (!link || link.dataset.busy) return;
-  const label = link.textContent;
-  link.dataset.busy = '1';
-  const reset = () => {
-    delete link.dataset.busy;
-    link.textContent = label;
-  };
-  link.textContent = 'Writing message...';
-  let job;
-  try {
-    job = await apiPostJson('/api/git/commit-message', {});
-  } catch (e) {
-    reset();
-    showToast('!', e.message || 'Could not start generation');
-    return;
-  }
-  pollCommitMessage(job.id, {
-    progress: t => { link.textContent = t; },
-    reset,
-    done: text => {
-      reset();
-      if (ta) ta.value = text;
-      toggleCommitMsgBox(true);
-    },
-  });
-}
-
-async function commitWithMessage(message, btn) {
-  if (btn) btn.textContent = 'Committing...';
-  try {
-    await apiPostJson('/api/git/commit', { message });
-    const ta = $('#git-commit-msg');
-    if (ta) {
-      ta.value = '';
-      ta.classList.remove('warn-border');
-    }
-    showToast('✓', 'Committed with AI');
-    await fetchRecentCommits();
-    await refreshUnpushed();
-    await triggerRefresh();
-    if (btn) {
-      btn.textContent = 'Stage all + Commit with AI';
-      flashActionSuccess(btn, 'Committed');
-    }
-  } catch (e) {
-    toggleCommitMsgBox(true); // surface the generated message so it isn't lost
-    showToast('!', e.message || 'Commit failed');
-  } finally {
-    if (!btn?._flashTimer) resetGenerateBtn(btn);
-    else btn.disabled = false;
-  }
-}
-
-// Harnesses sometimes wrap output in a markdown code fence despite being
-// asked not to; strip that and surrounding whitespace before using it.
-function cleanCommitMessage(text) {
-  let t = text.trim();
-  const fence = t.match(/^```[a-z]*\n([\s\S]*?)\n```$/);
-  if (fence) t = fence[1].trim();
-  return t;
 }
 
 export async function fetchRecentCommits() {

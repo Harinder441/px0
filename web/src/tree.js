@@ -63,10 +63,8 @@ export async function drawTree(dir, container, depth, isCurrent) {
     const yc = (isYou ? ' your-change' : '') + (prFileMap()?.[c.path] ? ' pr-file' : '');
     const youBadge = isYou ? '<span class="gs-you-tag" title="Modified by you in this review session">YOU</span>' : '';
     const badge = g ? '<span class="gs' + (isYou ? ' gs-you' : '') + '" title="' + (isYou ? 'Your change (' + c.yourStatus + '), git: ' + g[1] : 'git: ' + g[1]) + '">' + esc(c.status) + '</span>' + youBadge : '';
-    const showTick = S.meta?.pr ? isYou : !!g;
-    const tick = showTick ? '<button class="stage-tick' + (c.staged ? ' staged' : '') + '" data-stage="' + esc(c.path) + '" title="' + (c.staged ? 'Unstage' : 'Stage') + '"></button>' : '';
     return '<div class="tr file' + ig + gc + yc + '" data-file="' + esc(c.path) + '"' + (c.status ? ' data-st="' + esc(c.status) + '"' : '') + (c.yourStatus ? ' data-yst="' + esc(c.yourStatus) + '"' : '') + ' style="padding-left:' + (pad + 12) + 'px" title="Open ' + esc(c.path) + note + '">' +
-      '<span class="ic" data-t="' + fileKind(c.name) + '"></span><span class="nm">' + esc(c.name) + '</span>' + badge + tick + menuBtn + '</div>';
+      '<span class="ic" data-t="' + fileKind(c.name) + '"></span><span class="nm">' + esc(c.name) + '</span>' + badge + menuBtn + '</div>';
   }).join('');
   relabelTreeBadges();
   // A redraw drops the .sel row, so the open file is lit again whenever nothing else is selected.
@@ -324,7 +322,7 @@ export async function expandDirtyDirs(container = treeEl, version = expansionVer
   if (isCurrent()) persistOpenDirs();
 }
 
-export async function patchTreeGitStatus(statuses = {}, dirtyDirs = {}, staged = {}, yourStatuses = {}, yourDirtyDirs = {}) {
+export async function patchTreeGitStatus(statuses = {}, dirtyDirs = {}, yourStatuses = {}, yourDirtyDirs = {}) {
   // Check if any changed files belong to an open directory (or root) but don't have a DOM element yet,
   // or if any previously deleted files are now clean (so they should disappear from the tree).
   let needRefresh = false;
@@ -375,12 +373,10 @@ export async function patchTreeGitStatus(statuses = {}, dirtyDirs = {}, staged =
       if (badge) badge.remove();
       const youTag = fileRow.querySelector('.gs-you-tag');
       if (youTag) youTag.remove();
-      const tick = fileRow.querySelector('.stage-tick');
-      if (tick) tick.remove();
     }
   }
 
-  // 3. Update or apply badges + stage tick for changed files
+  // 3. Update or apply badges for changed files
   for (const [p, code] of Object.entries(statuses)) {
     const fileRow = treeEl.querySelector('[data-file="' + CSS.escape(p) + '"]');
     if (!fileRow) continue;
@@ -414,29 +410,12 @@ export async function patchTreeGitStatus(statuses = {}, dirtyDirs = {}, staged =
       } else if (youTag) {
         youTag.remove();
       }
-
-      const showTick = S.meta?.pr ? isYou : true;
-      let tick = fileRow.querySelector('.stage-tick');
-      if (showTick) {
-        if (!tick) {
-          tick = document.createElement('button');
-          tick.className = 'stage-tick';
-          tick.dataset.stage = p;
-          fileRow.appendChild(tick);
-        }
-        tick.classList.toggle('staged', !!staged[p]);
-        tick.title = staged[p] ? 'Unstage' : 'Stage';
-      } else if (tick) {
-        tick.remove();
-      }
     } else {
       fileRow.classList.remove('dirty', 'your-change');
       const badge = fileRow.querySelector('.gs');
       if (badge) badge.remove();
       const youTag = fileRow.querySelector('.gs-you-tag');
       if (youTag) youTag.remove();
-      const tick = fileRow.querySelector('.stage-tick');
-      if (tick) tick.remove();
     }
     const menuBtn = fileRow.querySelector('.tr-menu-btn');
     if (menuBtn) fileRow.appendChild(menuBtn);
@@ -450,9 +429,6 @@ export async function patchTreeGitStatus(statuses = {}, dirtyDirs = {}, staged =
       fileRow.classList.remove('your-change');
       fileRow.querySelector('.gs')?.classList.remove('gs-you');
       fileRow.querySelector('.gs-you-tag')?.remove();
-      if (S.meta?.pr) {
-        fileRow.querySelector('.stage-tick')?.remove();
-      }
     }
   }
 
@@ -643,21 +619,6 @@ export function initTree() {
       }
       return;
     }
-    const tick = e.target.closest('.stage-tick');
-    if (tick) {
-      e.stopPropagation();
-      const path = tick.dataset.stage;
-      const staged = tick.classList.toggle('staged'); // optimistic; the git-status stream reconciles it
-      tick.title = staged ? 'Unstage' : 'Stage';
-      try {
-        await apiPostJson(staged ? '/api/git/stage' : '/api/git/unstage', { path });
-      } catch (err) {
-        tick.classList.toggle('staged', !staged);
-        tick.title = staged ? 'Stage' : 'Unstage';
-        showToast('!', err.message || 'Could not update staging');
-      }
-      return;
-    }
     const dirRow = e.target.closest('[data-dir]');
     if (dirRow) {
       expansionVersion++;
@@ -691,7 +652,7 @@ export function initTree() {
       // and has been toggled the other way.
       const t = S.tabs.find(x => x.path === f.dataset.file);
       if (t) focusDiffScope(t);
-      openFile(f.dataset.file).then(() => { if (t) syncDiffView(); });
+      openFile(f.dataset.file, inGitMode() ? {} : { view: 'source' }).then(() => { if (t) syncDiffView(); });
     }
   });
 

@@ -162,20 +162,6 @@ body.side-hidden #side, body.side-hidden #resizer { display: none; }
 /* ---------- git status (tree) ---------- */
 /* One-letter badge on dirty files; colour by status, no literal colours. */
 .tr .gs { margin-left: auto; flex: none; font: 600 10px/1 var(--mono); padding: 0 4px; }
-/* Stage tick: only rendered on rows with a git status badge. Empty square,
-   filled + checkmark once staged. */
-.tr .stage-tick {
-  flex: none; width: 12px; height: 12px; margin-left: 4px; padding: 0;
-  border: 1px solid var(--faint); border-radius: var(--r); background: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  opacity: .55; cursor: pointer;
-}
-.tr .stage-tick:hover { opacity: 1; border-color: var(--accent); }
-.tr .stage-tick.staged { background: var(--accent); border-color: var(--accent); opacity: 1; }
-.tr .stage-tick.staged::after {
-  content: ""; width: 3px; height: 6px; border: solid var(--accent-fg); border-width: 0 1.5px 1.5px 0;
-  transform: rotate(45deg) translate(-1px, -1px);
-}
 .tr .tr-menu-btn {
   margin-left: auto;
   flex: none;
@@ -192,8 +178,7 @@ body.side-hidden #side, body.side-hidden #resizer { display: none; }
   cursor: pointer;
   transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
-.tr .gs ~ .tr-menu-btn,
-.tr .stage-tick ~ .tr-menu-btn {
+.tr .gs ~ .tr-menu-btn {
   margin-left: 2px;
 }
 .tr:hover .tr-menu-btn {
@@ -258,7 +243,7 @@ body.side-hidden #side, body.side-hidden #resizer { display: none; }
 /* "PR changes" shows the PR as it is: no YOU markers, and nothing only you touched. */
 #tree.changed-only.scope-pr .tr.file:not(.pr-file) { display: none; }
 #tree.changed-only.scope-pr .tw:not(:has(.pr-file)) { display: none; }
-#tree.scope-pr .gs-you-tag, #tree.scope-pr .stage-tick { display: none; }
+#tree.scope-pr .gs-you-tag { display: none; }
 #tree.scope-pr .tr.dir.your-dirty > .nm::after { background: var(--accent); box-shadow: none; }
 #tree.scope-pr .tr.file.your-change .nm { font-weight: inherit; text-decoration: none; }
 #tree.scope-pr .tr.file.your-change.git-A .nm, #tree.scope-pr .tr.file.your-change.git-A .gs,
@@ -440,12 +425,6 @@ a.cc-who:hover { color: var(--accent-fg); }
 .git-branch { font: 600 12px var(--ui); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .git-counts { font: 11px var(--mono); color: var(--faint); flex: none; }
 .git-panel-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; }
-.git-commit-msg {
-  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r);
-  padding: 6px 8px; font: 12px var(--mono); resize: vertical; min-height: 60px;
-}
-.git-commit-msg:focus { border-color: var(--accent); }
-.git-commit-msg[hidden] { display: none; }
 .git-link-sep { font: 11px var(--ui); color: var(--faint); margin: 0 6px; }
 .git-instructions-wrap {
   display: flex; align-items: center; justify-content: flex-start;
@@ -488,9 +467,6 @@ a.cc-who:hover { color: var(--accent-fg); }
 .git-generate-btn:hover:not(:disabled) { opacity: .9; }
 #git-generate-msg:disabled,
 .git-generate-btn:disabled { opacity: .5; cursor: default; }
-
-.git-commit-section { display: flex; flex-direction: column; gap: 6px; }
-.git-commit-section[hidden] { display: none; }
 
 .git-ai-row { display: flex; align-items: center; gap: 6px; width: 100%; }
 .git-ai-row #git-generate-msg,
