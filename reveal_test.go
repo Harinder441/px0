@@ -9,14 +9,10 @@ import (
 	"testing"
 )
 
-// revealTestServer builds a Server rooted at a temp dir with a known file,
-// subdirectory, and (on platforms that support them) symlinks pointing both
-// inside and outside the root.
 func revealTestServer(t *testing.T) (*Server, string, string) {
 	t.Helper()
 	root := t.TempDir()
-	// EvalSymlinks resolves /var -> /private/var on macOS, so compare against
-	// the resolved root the handler will use.
+	// macOS resolves /var to /private/var, so compare against the resolved root.
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		t.Fatal(err)
@@ -41,8 +37,6 @@ func revealTestServer(t *testing.T) (*Server, string, string) {
 func TestRevealTargetValidation(t *testing.T) {
 	s, root, realRoot := revealTestServer(t)
 
-	// A sibling file outside the root, and a symlink inside the root that
-	// points at it, to prove a symlink cannot be used to escape.
 	outside := t.TempDir()
 	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)

@@ -73,8 +73,7 @@ function openTabMenu(index, x, y) {
     { action: 'copy-relative', label: 'Copy Relative Path', disabled: false },
     { action: 'copy-absolute', label: 'Copy Absolute Path', disabled: false },
   ];
-  // Reveal in Finder runs on the Mac hosting px0; hide it on a phone (it would
-  // open Finder on the Mac) and off macOS (the server reports no support).
+  // Finder opens on the Mac running px0, so a phone click would be useless.
   if (S.meta?.reveal && !isPhone()) {
     actions.push({ sep: true }, { action: 'reveal', label: 'Open in Finder', disabled: false });
   }

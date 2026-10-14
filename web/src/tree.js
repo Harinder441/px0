@@ -532,9 +532,7 @@ export function openTreeMenu(row, x, y) {
     { action: 'copy-name', label: isDir ? 'Copy Folder Name' : 'Copy File Name' },
     { action: 'copy-absolute', label: 'Copy Absolute Path' },
   ];
-  // Reveal in Finder runs on the Mac hosting px0, so it is pointless from a
-  // phone (it would open Finder on the Mac, not the phone) and absent on a
-  // server that is not macOS.
+  // Finder opens on the Mac running px0, so a phone click would be useless.
   if (S.meta?.reveal && !isPhone()) items.push({ action: 'reveal', label: 'Open in Finder' });
 
   for (const item of items) {
