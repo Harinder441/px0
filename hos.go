@@ -1,0 +1,138 @@
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+// hosLink is the optional bridge to an hos daemon (Harinder's agent OS) for
+// "Mark Snag". It stays nil, and the feature inert, unless HOS_URL and
+// HOS_PX0_TOKEN are set: hos sets both when it launches px0, and
+// ~/.px0/hos.env (KEY=VALUE lines) can set them by hand.
+type hosLink struct {
+	url    string
+	token  string
+	client *http.Client
+}
+
+const hosSnagTextMax = 20000
+
+func hosEnvPath() string {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "px0", "hos.env")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	return filepath.Join(home, ".px0", "hos.env")
+}
+
+func readEnvFile(path string) map[string]string {
+	out := map[string]string{}
+	if path == "" {
+		return out
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return out
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, val, ok := strings.Cut(strings.TrimPrefix(line, "export "), "=")
+		if !ok {
+			continue
+		}
+		out[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(val), `"'`)
+	}
+	return out
+}
+
+// loadHosLink prefers the launch environment, then the env file; both values
+// must come from the same place so a stale file never pairs with a fresh URL.
+func loadHosLink(getenv func(string) string, envFile string) *hosLink {
+	url, token := strings.TrimSpace(getenv("HOS_URL")), strings.TrimSpace(getenv("HOS_PX0_TOKEN"))
+	if url == "" || token == "" {
+		file := readEnvFile(envFile)
+		url, token = file["HOS_URL"], file["HOS_PX0_TOKEN"]
+	}
+	if url == "" || token == "" {
+		return nil
+	}
+	return &hosLink{url: strings.TrimRight(url, "/"), token: token, client: &http.Client{Timeout: 5 * time.Second}}
+}
+
+// handleHosSnag forwards a snag to hos server-side, so the browser never needs
+// hos's origin, session or token.
+func (s *Server) handleHosSnag(w http.ResponseWriter, r *http.Request) {
+	if s.hos == nil {
+		fail(w, http.StatusNotFound, "hos is not connected: set HOS_URL and HOS_PX0_TOKEN, or "+hosEnvPath())
+		return
+	}
+	if r.Method != http.MethodPost {
+		fail(w, http.StatusMethodNotAllowed, "POST a snag")
+		return
+	}
+	// A JSON content type forces a CORS preflight, which px0 never answers, so another site cannot post here.
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		fail(w, http.StatusUnsupportedMediaType, "send JSON")
+		return
+	}
+	var in struct {
+		Kind string `json:"kind"`
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&in); err != nil {
+		fail(w, http.StatusBadRequest, "bad JSON")
+		return
+	}
+	in.Text = strings.TrimSpace(in.Text)
+	if in.Kind != "task" && in.Kind != "question" {
+		fail(w, http.StatusBadRequest, "kind must be task or question")
+		return
+	}
+	if in.Text == "" || len(in.Text) > hosSnagTextMax {
+		fail(w, http.StatusBadRequest, "a snag needs text (at most 20000 characters)")
+		return
+	}
+	body, _ := json.Marshal(in)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, s.hos.url+"/px0/snags", bytes.NewReader(body))
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+s.hos.token)
+	res, err := s.hos.client.Do(req)
+	if err != nil {
+		fail(w, http.StatusBadGateway, "hos did not answer at "+s.hos.url)
+		return
+	}
+	defer res.Body.Close()
+	var out struct {
+		Ref   string `json:"ref"`
+		Error string `json:"error"`
+	}
+	_ = json.NewDecoder(io.LimitReader(res.Body, 1<<16)).Decode(&out)
+	if res.StatusCode != http.StatusCreated || out.Ref == "" {
+		msg := out.Error
+		if msg == "" {
+			msg = res.Status
+		}
+		fail(w, http.StatusBadGateway, "hos refused the snag: "+msg)
+		return
+	}
+	writeJSON(w, map[string]string{"ref": out.Ref})
+}

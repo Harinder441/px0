@@ -45,6 +45,10 @@ export function setReviewHandler(fn) { reviewHandler = fn; }
 // "Add Review Comment" directly, without duplicating the registration.
 export function getReviewHandler() { return reviewHandler; }
 
+/* Mark Snag (snag.js), registered only when an hos daemon is connected. */
+let snagHandler = null;
+export function setSnagHandler(fn) { snagHandler = fn; }
+
 let current = null;   // the selection the bar is showing, or null when it is not
 let pinnedInfo = null; // the line a gutter button opened the menu for; independent of any text selection
 let allText = null;   // Ctrl+A: promise of the S.selAll file's full text
@@ -312,6 +316,11 @@ export function copySelectAll() {
 /* Runs one of the bar's actions on the current selection. Returns false when the
    bar is not showing, so a shortcut can fall through to the browser. */
 export function runSelectionAction(act, triggerBtn = null, override = null) {
+  if (act === 'mark-snag') {
+    if (!snagHandler) return false;
+    snagHandler();
+    return true;
+  }
   const target = override || current;
   if (!target) {
     if (act === 'thread') {

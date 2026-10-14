@@ -66,6 +66,7 @@ type Server struct {
 	mux        *http.ServeMux
 	basePath   string
 	session    *sessionManager
+	hos        *hosLink // nil unless an hos daemon is configured (hos.go)
 
 	lastReq atomic.Int64 // unix nanos of the most recent request
 }
@@ -183,6 +184,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc(s.routePath("/api/pr/comments/issue"), s.handlePRIssueCommentPost)
 	s.mux.HandleFunc(s.routePath("/api/pr/comments/review-reply"), s.handlePRReviewCommentReply)
 	s.mux.HandleFunc(s.routePath("/api/session"), s.handleSession)
+	s.mux.HandleFunc(s.routePath("/api/hos/snag"), s.handleHosSnag)
 }
 
 // NewServer creates and initializes a px0 Server instance, binding index and language servers,
@@ -195,7 +197,7 @@ func NewServer(ix *Index, lsp *lspManager, basePaths ...string) *Server {
 	if len(basePaths) > 0 && basePaths[0] != "" {
 		bp = cleanBasePath(basePaths[0])
 	}
-	s := &Server{ix: ix, lsp: lsp, diffBase: "HEAD", basePath: bp, mux: http.NewServeMux()}
+	s := &Server{ix: ix, lsp: lsp, diffBase: "HEAD", basePath: bp, mux: http.NewServeMux(), hos: loadHosLink(os.Getenv, hosEnvPath())}
 	s.session = newSessionManager(s.basePath, ix.Root())
 	s.gitWatcher = NewGitWatcher(ix)
 	s.gitWatcher.Start(context.Background())
@@ -879,6 +881,7 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 		"agentModel":  s.agent.Model(),
 		"agentPinned": s.agent.Pinned(),
 		"agents":      []agentHarness{},
+		"hos":         s.hos != nil,
 	}
 	if s.pr != nil {
 		p := s.pr

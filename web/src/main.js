@@ -28,6 +28,8 @@ import { initLineComment } from './linecomment.js';
 import { initUnpushed, refreshUnpushed } from './unpushed.js';
 import { initPRScope } from './prscope.js';
 import { initFold } from './fold.js';
+import { initMobile, settlePhoneSide } from './mobile.js';
+import { initSnag } from './snag.js';
 import { on } from './bus.js';
 
 // Initialize all subsystems
@@ -58,6 +60,7 @@ initLineComment();
 initUnpushed();
 initPRScope();
 initFold();
+initMobile();
 
 function urlPath() {
   return (new URLSearchParams(window.location.search).get('path') || '').replace(/^\/+|\/+$/g, '');
@@ -116,6 +119,7 @@ async function openPath(target, line) {
   refreshLspMenu();
   updateSidebarToggleState();
   initPR();
+  initSnag();
   document.title = S.meta.name + ' - px0';
   $('#root-name').textContent = S.meta.name;
   $('#root-name').title = S.meta.root;
@@ -174,6 +178,8 @@ async function openPath(target, line) {
     await restoreWorkspaceTabs();
     if (hasGitChanges) await selectChangedFileTab();
   }
+  // After showPanel('files'), which always opens the sidebar.
+  settlePhoneSide(!!doc_());
   const d = doc_();
   if (d && d.path !== urlPath()) writeUrl(d.path, false);
   on('tab:activated', ({ doc }) => { if (doc.path !== urlPath()) writeUrl(doc.path, true); });

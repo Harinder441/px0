@@ -16,6 +16,7 @@ import { clearSelectAll } from './selbar.js';
 import { syncPreview, previewing, previewLine } from './markdown.js';
 import { syncDiffView, layoutPref, diffScrollTop, setDiffMode, setSourceJumpHandler, setCommitStepHandler, scrollDiffToLine } from './diff.js';
 import { syncImageView } from './imageview.js';
+import { isPhone } from './mobile.js';
 
 // Recently closed files, newest last, for Alt+Shift+T.
 const closedTabs = [];
@@ -181,6 +182,8 @@ export async function openFile(path, opts = {}) {
   if (prev !== S.tabs[idx]) { clearSelectAll(); clearFind(); }
   S.active = idx;
   const d = S.tabs[idx];
+  // A phone has no Source/Diff switch, so it only shows a diff that was asked for.
+  if (d && isPhone() && !wantsDiff) d.diffMode = null;
   if (d) {
     if (wantsSource) {
       d.diffMode = null;
@@ -195,7 +198,7 @@ export async function openFile(path, opts = {}) {
         d.diffMode = null;
         if (!soft) setStatusNote('No diff for ' + d.name + ' — showing source', 3000);
       }
-    } else if (d.diffAvailable && !d.diffDismissed && d.diffMode === null) {
+    } else if (d.diffAvailable && !d.diffDismissed && d.diffMode === null && !isPhone()) {
       d.diffMode = layoutPref() || 'split';
       d.openedInDiffView = true;
     }
@@ -241,7 +244,7 @@ export async function loadGutter(d) {
     const j = await api('/api/gutter', { path: d.path, ref });
     if ((d.diffRef || '') !== ref) return;
     d.diffAvailable = !!j.available;
-    if (j.available && d.diffMode === null && !d.diffDismissed && d.openedInDiffView) {
+    if (j.available && d.diffMode === null && !d.diffDismissed && d.openedInDiffView && !isPhone()) {
       d.diffMode = layoutPref() || 'split';
       if (doc_() === d) {
         syncDiffView();

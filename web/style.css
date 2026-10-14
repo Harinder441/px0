@@ -3003,3 +3003,43 @@ body.hide-git-gutter .g-git, body.hide-git-gutter [class*="git-"] { display: non
 .thr-scope button.active { color: var(--accent-fg); border-color: var(--accent); background: var(--bg2); }
 .thr-scope button:disabled { opacity: .4; cursor: default; }
 .thr-compose { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--line); }
+
+/* ---------- Mark Snag dialog (web/src/snag.js) ---------- */
+.snag-box {
+  width: min(520px, 94vw); display: flex; flex-direction: column; gap: 10px; padding: 14px 16px;
+  background: var(--bg2); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow);
+}
+.snag-head { display: flex; align-items: center; justify-content: space-between; }
+.snag-head h2 { margin: 0; font-size: 14px; }
+.snag-kinds { display: flex; gap: 4px; }
+.snag-kinds button { padding: 4px 12px; border: 1px solid var(--line); border-radius: var(--r); color: var(--dim); background: var(--bg3); }
+.snag-kinds button.active { color: var(--accent-fg); border-color: var(--accent); }
+#snag-note { width: 100%; resize: vertical; padding: 8px; font: inherit; font-size: 13px; line-height: 1.4; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); }
+#snag-note:focus { outline: 1px solid var(--accent); }
+.snag-where { font: 11px/1.5 var(--mono); color: var(--faint); white-space: pre-wrap; overflow-wrap: anywhere; }
+.snag-err { font-size: 12px; color: var(--gd); }
+.snag-foot { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- phone (web/src/mobile.js) ----------
+   Only the open file and the file list: the inspector, view switches and status
+   bar go, and the sidebar is a drawer over the file, closed until the menu
+   button opens it. */
+.side-drawer-btn, #side-scrim { display: none; }
+@media (max-width: 640px) {
+  #right-side, #right-resizer, #resizer, #view-switches, #status, .open-right { display: none !important; }
+  #side {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 60;
+    width: min(86vw, 340px) !important; box-shadow: 0 0 24px rgba(0, 0, 0, .35);
+  }
+  body:not(.side-hidden) #side-scrim { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(0, 0, 0, .45); }
+  .side-drawer-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    position: absolute; top: 0; left: 0; z-index: 8; width: 44px; height: 40px;
+    color: var(--dim); background: var(--bg2); box-shadow: inset 0 -1px 0 var(--line), inset -1px 0 0 var(--line);
+  }
+  .side-drawer-btn:hover, .side-drawer-btn:focus-visible { color: var(--accent-fg); }
+  #tabs, #tabs:empty { display: flex; height: 40px; padding-left: 44px !important; padding-right: 0 !important; }
+  .tab { height: 40px; line-height: 40px; font-size: 13px; }
+  .tab .x { width: 24px; height: 24px; }
+  .tr { height: 34px; font-size: 14px; }
+}

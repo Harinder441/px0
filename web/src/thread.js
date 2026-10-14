@@ -459,7 +459,7 @@ function thrTurnHtml(turn) {
   return h + '</div>';
 }
 
-function thrRenderMsgs() {
+function thrRenderMsgs(forceBottom = false) {
   const box = thrEl.msgs;
   const stick = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
   const turns = thr.cur ? thr.cur.turns : [];
@@ -467,7 +467,9 @@ function thrRenderMsgs() {
     : '<div class="hint">' + (thr.draft && thr.draft.path
       ? 'Ask a question about this code, or ask for changes. The reply can touch any file.'
       : 'Ask anything about this workspace. The reply can touch any file.') + '</div>';
-  if (stick) box.scrollTop = box.scrollHeight;
+  if (stick || forceBottom) box.scrollTop = box.scrollHeight;
+  // Opening a thread lands on its last message; the frame wait lets the pane lay out first.
+  if (forceBottom) requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; });
 }
 
 /* PR review: what the thread is about. The default comes from where you are --
@@ -507,7 +509,7 @@ async function thrPickScope(scope) {
   thrRenderScope();
 }
 
-function thrRenderState() {
+function thrRenderState(forceBottom = false) {
   const running = thrRunning();
   thrEl.title.textContent = thr.cur ? thr.cur.title : 'New thread';
   thrEl.del.hidden = !thr.cur;
@@ -516,7 +518,7 @@ function thrRenderState() {
   thrEl.hint.textContent = running ? 'Working. You can send the next message once it replies.' : 'Enter to send, Shift+Enter for a new line';
   thrRenderAnchor();
   thrRenderScope();
-  thrRenderMsgs();
+  thrRenderMsgs(forceBottom);
   thrDrawList();
 }
 
@@ -578,7 +580,7 @@ export async function openThread(id) {
     const t = await api('/api/threads/get', { id });
     if (thr.opening !== id) return;
     thr.cur = t;
-    thrRenderState();
+    thrRenderState(true);
     if (thrRunning()) thrOpenStream(id);
   } catch (e) {
     if (thr.opening !== id) return;

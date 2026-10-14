@@ -1,5 +1,5 @@
 // web/src/tree.js
-import { $, $$, esc, api, apiPost, apiPostJson, S } from './state.js';
+import { $, $$, esc, api, apiPost, apiPostJson, S, doc_ } from './state.js';
 import { openFile } from './tabs.js';
 import { syncDiffView, focusDiffScope } from './diff.js';
 import { showToast, copyToClipboard } from './ui.js';
@@ -69,7 +69,19 @@ export async function drawTree(dir, container, depth, isCurrent) {
       '<span class="ic" data-t="' + fileKind(c.name) + '"></span><span class="nm">' + esc(c.name) + '</span>' + badge + tick + menuBtn + '</div>';
   }).join('');
   relabelTreeBadges();
+  // A redraw drops the .sel row, so the open file is lit again whenever nothing else is selected.
+  if (!treeEl.querySelector('.tr.sel')) markActiveFile(doc_()?.path);
   return true;
+}
+
+/* Light the open file's row without expanding folders or scrolling, so the
+   highlight follows the active tab even when auto reveal is off. */
+export function markActiveFile(path) {
+  if (!path) return;
+  const row = treeEl.querySelector('[data-file="' + CSS.escape(path.replace(/^\/+/, '')) + '"]');
+  if (!row || row.classList.contains('sel')) return;
+  $$('.tr.sel', treeEl).forEach(x => x.classList.remove('sel'));
+  row.classList.add('sel');
 }
 
 /* The paths the PR itself changes (server: diffBase..PR head), as a Set. Rows in
@@ -684,8 +696,18 @@ export function initTree() {
   });
 
   on('tab:activated', ({ doc }) => {
-    if (!doc || !doc.path || !isAutoRevealEnabled()) return;
+    if (!doc || !doc.path) return;
+    markActiveFile(doc.path);
+    if (!isAutoRevealEnabled()) return;
     if (document.body.classList.contains('side-hidden')) return;
     revealFile(doc.path);
   });
+
+  // Reopening the sidebar reveals the open file it could not scroll to while hidden.
+  let sideWasHidden = document.body.classList.contains('side-hidden');
+  new MutationObserver(() => {
+    const hidden = document.body.classList.contains('side-hidden');
+    if (sideWasHidden && !hidden && isAutoRevealEnabled()) revealFile(doc_()?.path);
+    sideWasHidden = hidden;
+  }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 }

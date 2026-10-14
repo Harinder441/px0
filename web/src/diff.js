@@ -13,6 +13,7 @@ import { gotoDefinition } from './lsp.js';
 import { hoverAt } from './hover.js';
 import { pushHistory } from './history.js';
 import { COMMIT_STATUS, loadCommitFiles, cachedCommitFiles } from './commitfiles.js';
+import { isPhone } from './mobile.js';
 
 export const diffview = $('#diffview');
 const diffContent = $('#diffcontent');
@@ -27,6 +28,7 @@ export function setLayoutPref(mode) {
 }
 
 export function layoutPref() {
+  if (isPhone()) return 'unified'; // no room for two columns on a phone
   try { return localStorage.getItem('px0.diffLayout') || 'split'; } catch { return 'split'; }
 }
 

@@ -103,9 +103,13 @@
 
   <!-- Sidebar Resizer Divider -->
   <div id="resizer"></div>
+  <!-- Phone only: closes the sidebar drawer (web/src/mobile.js) -->
+  <div id="side-scrim" aria-hidden="true"></div>
 
   <!-- SECTION: Main Editor Area -->
   <main id="main">
+    <!-- Phone only: opens the sidebar drawer (web/src/mobile.js) -->
+    <button id="btn-side-drawer" class="side-drawer-btn" type="button" title="Files" aria-label="Show files" aria-controls="side" aria-expanded="false"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
     <!-- PR review bar: shown only when this session is `px0 pr ...` (web/src/pr.js) -->
     <div id="pr-bar" class="pr-bar" hidden>
       <div class="pr-bar-row">
