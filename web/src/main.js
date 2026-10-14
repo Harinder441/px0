@@ -9,7 +9,7 @@ import { drawTree, treeEl, initTree, revealFile, focusDir, refreshTree, restoreO
 import { initSearch } from './search.js';
 import { initOutline } from './outline.js';
 import { initPanels, showPanel } from './panels.js';
-import { initInspector, showRightInspector } from './inspector.js';
+import { initInspector } from './inspector.js';
 import { initCalls } from './calls.js';
 import { initFind } from './find.js';
 import { initPalette } from './palette.js';
@@ -87,7 +87,6 @@ initPRScope();
   refreshLspMenu();
   updateSidebarToggleState();
   initPR();
-  showRightInspector();
   document.title = S.meta.name + ' - px0';
   $('#root-name').textContent = S.meta.name;
   $('#root-name').title = S.meta.root;

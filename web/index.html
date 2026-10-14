@@ -15,7 +15,7 @@
 <!-- Every web/themes/*.css joined by the server. See docs/internals/styling-and-themes.md. -->
 <link rel="stylesheet" href="static/themes.css">
 </head>
-<body>
+<body class="right-hidden">
 <div id="app">
   <!-- SECTION: Sidebar (File explorer tree) -->
   <aside id="side">
@@ -29,7 +29,7 @@
     <!-- Unpushed commits: the local commits ahead of the tracking branch,
          listed beside the tree while the "changed files only" filter is on.
          web/src/unpushed.js owns it. -->
-    <div id="unpushed" class="unpushed" hidden>
+    <div id="unpushed" class="unpushed collapsed" hidden>
       <div id="unpushed-resizer" class="unpushed-resizer" title="Drag to resize"></div>
       <div class="unpushed-head">
         <svg class="unpushed-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
@@ -41,7 +41,7 @@
       </div>
       <div id="unpushed-body" class="unpushed-body"></div>
     </div>
-    <div id="git-panel" class="git-panel" hidden>
+    <div id="git-panel" class="git-panel collapsed" hidden>
       <div id="git-panel-resizer" class="git-panel-resizer" title="Drag to resize"></div>
       <div class="git-panel-head">
         <svg class="git-panel-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Git Panel"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7M18 11.5c0 3-3 3.5-6 3.5"/></svg>
