@@ -6,6 +6,7 @@ import { showToast, copyToClipboard } from './ui.js';
 import { closeSelMenu } from './selbar.js';
 import { emit, on } from './bus.js';
 import { isAutoRevealEnabled } from './settings.js';
+import { isPhone } from './mobile.js';
 
 export const treeEl = $('#tree');
 const treeMenu = $('#tree-menu');
@@ -531,6 +532,10 @@ export function openTreeMenu(row, x, y) {
     { action: 'copy-name', label: isDir ? 'Copy Folder Name' : 'Copy File Name' },
     { action: 'copy-absolute', label: 'Copy Absolute Path' },
   ];
+  // Reveal in Finder runs on the Mac hosting px0, so it is pointless from a
+  // phone (it would open Finder on the Mac, not the phone) and absent on a
+  // server that is not macOS.
+  if (S.meta?.reveal && !isPhone()) items.push({ action: 'reveal', label: 'Open in Finder' });
 
   for (const item of items) {
     const btn = document.createElement('button');
@@ -569,6 +574,8 @@ export function initTree() {
         const root = S.meta?.root ? S.meta.root.replace(/\/+$/, '') : '';
         const fullPath = root ? (path.startsWith('/') ? path : root + '/' + path) : path;
         copyToClipboard(fullPath, 'Copied ' + fullPath);
+      } else if (act === 'reveal') {
+        apiPost('/api/reveal', { path }).catch(err => showToast('!', err.message || 'Could not open Finder'));
       }
     });
 

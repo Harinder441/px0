@@ -184,6 +184,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc(s.routePath("/api/pr/comments/issue"), s.handlePRIssueCommentPost)
 	s.mux.HandleFunc(s.routePath("/api/pr/comments/review-reply"), s.handlePRReviewCommentReply)
 	s.mux.HandleFunc(s.routePath("/api/session"), s.handleSession)
+	s.mux.HandleFunc(s.routePath("/api/reveal"), s.handleReveal)
 	s.mux.HandleFunc(s.routePath("/api/hos/snag"), s.handleHosSnag)
 }
 
@@ -882,6 +883,7 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 		"agentPinned": s.agent.Pinned(),
 		"agents":      []agentHarness{},
 		"hos":         s.hos != nil,
+		"reveal":      revealSupported,
 	}
 	if s.pr != nil {
 		p := s.pr

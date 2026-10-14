@@ -73,6 +73,11 @@ function openTabMenu(index, x, y) {
     { action: 'copy-relative', label: 'Copy Relative Path', disabled: false },
     { action: 'copy-absolute', label: 'Copy Absolute Path', disabled: false },
   ];
+  // Reveal in Finder runs on the Mac hosting px0; hide it on a phone (it would
+  // open Finder on the Mac) and off macOS (the server reports no support).
+  if (S.meta?.reveal && !isPhone()) {
+    actions.push({ sep: true }, { action: 'reveal', label: 'Open in Finder', disabled: false });
+  }
   tabMenu.replaceChildren();
   for (const { action, label, disabled, sep } of actions) {
     if (sep) {
@@ -603,6 +608,11 @@ export function initTabs() {
     if (copy) {
       const t = S.tabs[index];
       if (t) { const text = copy(t); copyToClipboard(text, 'Copied ' + text); }
+      return;
+    }
+    if (button.dataset.tabAction === 'reveal') {
+      const t = S.tabs[index];
+      if (t) apiPost('/api/reveal', { path: t.path }).catch(err => setStatusNote(err.message || 'Could not open Finder', 4000));
       return;
     }
     closeTabsForAction(button.dataset.tabAction, index);
