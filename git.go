@@ -76,6 +76,9 @@ func gitStatus(root string) map[string]string {
 // to the repo toplevel) to a path relative to root, or false when it falls
 // outside root's subtree (root may be a subdirectory of the repo).
 func repoRelKey(info gitInfo, root string) func(string) (string, bool) {
+	if real, err := filepath.EvalSymlinks(root); err == nil {
+		root = real
+	}
 	prefix := ""
 	if rel, err := filepath.Rel(info.toplevel, root); err == nil && rel != "." {
 		prefix = filepath.ToSlash(rel) + "/"
