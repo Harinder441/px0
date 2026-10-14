@@ -2,7 +2,8 @@
 import { $, esc, S, doc_, api, apiPost, apiPostJson, LH, CHUNK, withKeys } from './state.js';
 import { emit } from './bus.js';
 import { vp, sizer, rowsEl, editor, copyToClipboard } from './ui.js';
-import { render, layout, refineChunk } from './renderer.js';
+import { render, layout, refineChunk, lineToIdx } from './renderer.js';
+import { loadFolds, unfoldAt } from './fold.js';
 import { updateStatus, setStatusNote, refreshMetrics } from './status.js';
 import { pushHistory } from './history.js';
 import { warmLSP } from './lsp.js';
@@ -174,7 +175,7 @@ export async function openFile(path, opts = {}) {
     S.tabs.push(d);
     idx = S.tabs.length - 1;
     if (!isImg && j.refine) refineChunk(d, start / CHUNK);
-    if (!isImg) loadGutter(d);
+    if (!isImg) { loadGutter(d); loadFolds(d); }
   }
   if (prev && prev !== S.tabs[idx]) prev.scrollTop = vp.scrollTop;
   if (prev !== S.tabs[idx]) { clearSelectAll(); clearFind(); }
@@ -362,6 +363,7 @@ export async function reloadOpenTabs({ onlyIfChanged = false } = {}) {
 
     S.tabs[idx] = d;
     if (j.refine) refineChunk(d, tgt.start / CHUNK);
+    loadFolds(d);
   }
 
   if (onlyIfChanged && !anyChanged) return;
@@ -393,7 +395,9 @@ export async function reloadOpenTabs({ onlyIfChanged = false } = {}) {
 
 export function centerLine(n) {
   if (previewing()) { previewLine(n); return; }
-  const y = (n - 1) * LH - Math.max(0, vp.clientHeight / 2 - LH * 2);
+  const d = doc_();
+  if (d) unfoldAt(d, n);
+  const y = (d ? lineToIdx(d, n) : n - 1) * LH - Math.max(0, vp.clientHeight / 2 - LH * 2);
   vp.scrollTop = Math.max(0, y);
 }
 

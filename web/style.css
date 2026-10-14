@@ -925,6 +925,24 @@ body.md-tab.diff-tab #tabs { padding-right: 395px; }
 }
 .c i, .diff-code i { font-style: normal; }
 
+.fold {
+  position: absolute; left: 2px; top: 0; width: 12px; height: var(--lh);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--faint); opacity: 0; transition: opacity .12s ease;
+}
+.fold::before {
+  content: ""; width: 5px; height: 5px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: translateY(-1px) rotate(45deg);
+}
+.fold.shut::before { transform: translateX(-1px) rotate(-45deg); }
+.fold:hover { color: var(--fg); }
+#rows:hover .fold, .fold.shut { opacity: 1; }
+.row.folded .c::after {
+  content: "…"; margin-left: 6px; padding: 0 5px; border-radius: var(--r);
+  color: var(--faint); background: var(--bg3, var(--bg2));
+}
+
 /* Word wrap mode (Alt+Z) */
 body.word-wrap .row { height: auto; min-height: var(--lh); }
 body.word-wrap .g { align-self: flex-start; height: var(--lh); }

@@ -15,7 +15,7 @@ export function layout() {
   editor.style.setProperty('--gw', digits);
   const gutter = digits * S.chW + 30;
   const w = S.wrap ? vp.clientWidth : Math.max(vp.clientWidth, gutter + (d.maxCols + 4) * S.chW);
-  sizer.style.height = (d.total * LH + Math.max(120, vp.clientHeight * 0.5)) + 'px';
+  sizer.style.height = (rowCount(d) * LH + Math.max(120, vp.clientHeight * 0.5)) + 'px';
   sizer.style.width = w + 'px';
   rowsEl.style.width = w + 'px';
 }
@@ -67,16 +67,22 @@ export function paint() {
   const top = vp.scrollTop;
   const first = Math.max(0, Math.floor(top / LH) - OVERSCAN);
   const count = Math.ceil(vp.clientHeight / LH) + OVERSCAN * 2;
-  const last = Math.min(d.total, first + count);
-  ensureChunks(d, first, last);
+  const last = Math.min(rowCount(d), first + count);
+  if (d.vis) { if (last > first) ensureChunks(d, d.vis[first] - 1, d.vis[last - 1]); }
+  else ensureChunks(d, first, last);
 
   let html = '';
   const gut = d.gutter || null;
   const agentRanges = (S.agentTargets || []).filter(t => t.path === d.path);
   for (let i = first; i < last; i++) {
-    const n = i + 1;
-    const body = d.lines[i];
-    let rc = 'row', gc = 'g';
+    const n = d.vis ? d.vis[i] : i + 1;
+    const body = d.lines[n - 1];
+    let rc = 'row', gc = 'g', fold = '';
+    if (d.foldEnd?.has(n)) {
+      const shut = d.folded.has(n);
+      if (shut) rc += ' folded';
+      fold = '<span class="fold' + (shut ? ' shut' : '') + '" data-l="' + n + '" title="' + (shut ? 'Expand' : 'Collapse') + '"></span>';
+    }
     if (n === d.cur) rc += ' cur';
     if (agentRanges.some(r => n >= r.l1 && n <= r.l2)) rc += ' agent-sel';
     if (agentRanges.some(r => n === r.l1)) rc += ' agent-anchor';
@@ -86,7 +92,7 @@ export function paint() {
       if (gut.dels.has(n)) rc += ' gut-del';
     }
     html += '<div class="' + rc + '" data-l="' + n + '">' +
-      '<div class="' + gc + '"><span class="line-btn" role="button" data-l="' + n + '" title="Line actions">Edit</span>' + n + '</div><div class="c">' + (body === undefined ? '' : body) + '</div></div>';
+      '<div class="' + gc + '">' + fold + n + '</div><div class="c">' + (body === undefined ? '' : body) + '</div></div>';
   }
   const sel = saveSelection();
   rowsEl.style.transform = 'translateY(' + (first * LH) + 'px)';
@@ -281,6 +287,21 @@ export function wrapRange(el, from, to, cls) {
     if (at >= to) break;
   }
   return out;
+}
+
+export function rowCount(d) {
+  return d.vis ? d.vis.length : d.total;
+}
+
+// Row index of line n; a line hidden inside a fold maps to the fold's start row.
+export function lineToIdx(d, n) {
+  if (!d.vis) return n - 1;
+  let lo = 0, hi = d.vis.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (d.vis[mid] <= n) lo = mid; else hi = mid - 1;
+  }
+  return lo;
 }
 
 export function rowFor(line) {

@@ -1,5 +1,5 @@
 // web/src/main.js
-import { $, S, api, applyKeyLabels } from './state.js';
+import { $, S, api, applyKeyLabels, doc_ } from './state.js';
 import { measure, layout, render, initRenderer, updateEditorOptionControls } from './renderer.js';
 import { initTabs, openFile, restoreWorkspaceTabs, switchTab } from './tabs.js';
 import { initCursor } from './cursor.js';
@@ -27,6 +27,8 @@ import { initPR } from './pr.js';
 import { initLineComment } from './linecomment.js';
 import { initUnpushed, refreshUnpushed } from './unpushed.js';
 import { initPRScope } from './prscope.js';
+import { initFold } from './fold.js';
+import { on } from './bus.js';
 
 // Initialize all subsystems
 initRenderer();
@@ -55,6 +57,33 @@ initImageViewer();
 initLineComment();
 initUnpushed();
 initPRScope();
+initFold();
+
+function urlPath() {
+  return (new URLSearchParams(window.location.search).get('path') || '').replace(/^\/+|\/+$/g, '');
+}
+
+function writeUrl(path, push) {
+  const u = new URL(window.location.href);
+  u.searchParams.delete('line');
+  if (path) u.searchParams.set('path', path);
+  else u.searchParams.delete('path');
+  const url = u.pathname + u.search.replace(/%2F/gi, '/') + u.hash;
+  if (push) window.history.pushState(null, '', url);
+  else window.history.replaceState(null, '', url);
+}
+
+async function openPath(target, line) {
+  const parent = target.includes('/') ? target.slice(0, target.lastIndexOf('/')) : '';
+  const isDir = await api('/api/tree', { dir: parent })
+    .then(j => j.children.some(c => c.dir && c.path === target), () => false);
+  if (isDir) {
+    await focusDir(target);
+  } else {
+    await openFile(target, { line });
+    await revealFile(target);
+  }
+}
 
 // Bootstrap application lifecycle
 (async function boot() {
@@ -136,32 +165,23 @@ initPRScope();
   let hasGitChanges = await applyGitSidebarState();
 
   const params = new URLSearchParams(window.location.search);
-  const initialPath = params.get('path');
+  const initialPath = urlPath();
   const initialLine = parseInt(params.get('line'), 10) || undefined;
   if (initialPath) {
-    const target = initialPath.replace(/^\/+|\/+$/g, '');
     await showPanel('files');
-    const parent = target.includes('/') ? target.slice(0, target.lastIndexOf('/')) : '';
-    const isDir = !!target && await api('/api/tree', { dir: parent })
-      .then(j => j.children.some(c => c.dir && c.path === target), () => false);
-    if (isDir) {
-      await focusDir(target);
-    } else {
-      await openFile(target, { line: initialLine });
-      await revealFile(target);
-    }
-    try {
-      const u = new URL(window.location.href);
-      u.searchParams.delete('path');
-      u.searchParams.delete('line');
-      const cleanSearch = u.searchParams.toString();
-      const cleanUrl = u.pathname + (cleanSearch ? '?' + cleanSearch : '') + u.hash;
-      window.history.replaceState({}, '', cleanUrl);
-    } catch {}
+    await openPath(initialPath, initialLine);
   } else {
     await restoreWorkspaceTabs();
     if (hasGitChanges) await selectChangedFileTab();
   }
+  const d = doc_();
+  if (d && d.path !== urlPath()) writeUrl(d.path, false);
+  on('tab:activated', ({ doc }) => { if (doc.path !== urlPath()) writeUrl(doc.path, true); });
+  on('tabs:cleared', () => writeUrl('', false));
+  window.addEventListener('popstate', () => {
+    const p = urlPath();
+    if (p && p !== doc_()?.path) openPath(p);
+  });
 
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => { measure(); layout(); render(); });

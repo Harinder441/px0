@@ -2,7 +2,7 @@
 import { $, S, doc_, api, debounce, LH } from './state.js';
 import { on } from './bus.js';
 import { vp } from './ui.js';
-import { render, paint } from './renderer.js';
+import { render, paint, lineToIdx } from './renderer.js';
 import { centerLine } from './tabs.js';
 import { updateStatus } from './status.js';
 import { mdview, previewing, findInPreview, showPreviewHit, clearPreviewMarks, previewHitOffsets, scrollPreviewTo } from './markdown.js';
@@ -94,8 +94,8 @@ export function jumpToHit(i) {
   }
   const h = S.find.hits[S.find.active];
   d.cur = h.line;
-  const y = (h.line - 1) * LH;
-  if (y < vp.scrollTop + LH * 2 || y > vp.scrollTop + vp.clientHeight - LH * 3) centerLine(h.line);
+  const y = lineToIdx(d, h.line) * LH;
+  if (d.vis || y < vp.scrollTop + LH * 2 || y > vp.scrollTop + vp.clientHeight - LH * 3) centerLine(h.line);
   $('#find-count').textContent = (S.find.active + 1) + ' / ' + n;
   render(); updateStatus();
 }
