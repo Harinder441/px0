@@ -82,6 +82,31 @@ func TestHosSnagForwardsToHosWithTheToken(t *testing.T) {
 	}
 }
 
+func TestHosSnagForwardsFilesAsIs(t *testing.T) {
+	var gotBody struct {
+		Kind  string           `json:"kind"`
+		Text  string           `json:"text"`
+		Files []map[string]any `json:"files"`
+	}
+	hos := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &gotBody)
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"ref":"S78"}`))
+	}))
+	defer hos.Close()
+	s := hosSnagServer(t, &hosLink{url: hos.URL, token: "tok", client: hos.Client()})
+
+	big := strings.Repeat("QUFB", 1<<20/4*3)
+	rec := postSnag(s, "application/json", `{"kind":"task","text":"","files":[{"name":"shot.png","data":"aGk="},{"name":"big.bin","data":"`+big+`"}]}`)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"ref":"S78"`) {
+		t.Fatalf("a snag with files and no note: got %d %s", rec.Code, rec.Body.String())
+	}
+	if len(gotBody.Files) != 2 || gotBody.Files[0]["name"] != "shot.png" || gotBody.Files[0]["data"] != "aGk=" || gotBody.Files[1]["data"] != big {
+		t.Fatalf("hos got files %v", len(gotBody.Files))
+	}
+}
+
 func TestHosSnagRefusals(t *testing.T) {
 	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -98,6 +123,8 @@ func TestHosSnagRefusals(t *testing.T) {
 		{"unknown kind", "application/json", `{"kind":"bug","text":"x"}`, http.StatusBadRequest, "kind must be"},
 		{"blank text", "application/json", `{"kind":"task","text":"   "}`, http.StatusBadRequest, "needs text"},
 		{"hos refuses", "application/json", `{"kind":"task","text":"x"}`, http.StatusBadGateway, "unknown px0 token"},
+		{"too many files", "application/json", `{"kind":"task","text":"x","files":[` + strings.TrimSuffix(strings.Repeat(`{"name":"a","data":""},`, 11), ",") + `]}`, http.StatusBadRequest, "at most 10 files"},
+		{"body over the cap", "application/json", `{"kind":"task","text":"x","files":[{"name":"a","data":"` + strings.Repeat("A", hosSnagBodyMax) + `"}]}`, http.StatusRequestEntityTooLarge, "25 MB"},
 	}
 	for _, c := range cases {
 		rec := postSnag(s, c.contentType, c.body)

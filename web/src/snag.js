@@ -13,8 +13,13 @@ const KINDS = [
   { kind: 'question', label: 'Question', hint: 'Something to ask or understand' },
 ];
 
+// The same limits hos's snag store enforces.
+const FILES_MAX = 10;
+const BYTES_MAX = 25 * 1024 * 1024;
+
 let dialog = null;
 let kind = 'task';
+let files = [];
 
 function build() {
   const el = document.createElement('div');
@@ -28,6 +33,7 @@ function build() {
         KINDS.map(k => '<button type="button" role="radio" data-kind="' + k.kind + '" title="' + k.hint + '">' + k.label + '</button>').join('') +
       '</div>' +
       '<textarea id="snag-note" rows="5" spellcheck="true" placeholder="What is wrong, or what do you want to know?" aria-label="Snag note"></textarea>' +
+      '<div class="snag-files"><button type="button" class="settings-btn-secondary" data-snag="attach" title="Attach files (or paste or drop them here)">Attach files</button><input type="file" id="snag-file" multiple hidden><ul id="snag-list" aria-label="Attached files"></ul></div>' +
       '<div class="snag-where" id="snag-where"></div>' +
       '<div class="snag-err" id="snag-err" role="alert" hidden></div>' +
       '<footer class="snag-foot"><button type="button" class="settings-btn-secondary" data-snag="close">Cancel</button><button type="submit" class="settings-btn-primary" id="snag-send">Mark Snag</button></footer>' +
@@ -37,6 +43,19 @@ function build() {
     if (e.target === el || e.target.closest('[data-snag="close"]')) closeSnag();
     const k = e.target.closest('[data-kind]');
     if (k) setKind(k.dataset.kind);
+    if (e.target.closest('[data-snag="attach"]')) $('#snag-file').click();
+    const rm = e.target.closest('[data-rm]');
+    if (rm) { files.splice(Number(rm.dataset.rm), 1); renderFiles(); }
+  });
+  el.querySelector('#snag-file').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+  el.addEventListener('paste', e => {
+    if (e.clipboardData?.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); }
+  });
+  el.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
+  el.addEventListener('drop', e => {
+    if (!e.dataTransfer?.files.length) return;
+    e.preventDefault();
+    addFiles(e.dataTransfer.files);
   });
   el.addEventListener('keydown', e => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeSnag(); }
@@ -44,6 +63,47 @@ function build() {
   });
   el.querySelector('form').addEventListener('submit', e => { e.preventDefault(); send(); });
   return el;
+}
+
+function showErr(msg) {
+  const err = $('#snag-err');
+  err.textContent = msg;
+  err.hidden = !msg;
+}
+
+function addFiles(list) {
+  const next = [...files, ...list];
+  if (next.length > FILES_MAX) return showErr('A snag holds at most ' + FILES_MAX + ' files.');
+  if (next.reduce((sum, f) => sum + f.size, 0) > BYTES_MAX) return showErr('Snag files are at most 25 MB in total.');
+  files = next;
+  showErr('');
+  renderFiles();
+}
+
+function renderFiles() {
+  const ul = $('#snag-list');
+  ul.replaceChildren(...files.map((f, i) => {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.textContent = (f.name || 'pasted file') + ' · ' + Math.max(1, Math.round(f.size / 1024)) + ' KB';
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'mini';
+    rm.dataset.rm = String(i);
+    rm.setAttribute('aria-label', 'Remove ' + (f.name || 'file'));
+    rm.innerHTML = '&#10005;';
+    li.append(name, rm);
+    return li;
+  }));
+}
+
+function toBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).slice(String(reader.result).indexOf(',') + 1));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 function setKind(next) {
@@ -60,8 +120,10 @@ export function openSnag(startKind = 'task') {
   const d = doc_();
   dialog.dataset.path = d?.path || '';
   $('#snag-where').textContent = snagText('', S.meta, d?.path || '').trim();
-  $('#snag-err').hidden = true;
+  showErr('');
   $('#snag-note').value = '';
+  files = [];
+  renderFiles();
   setKind(startKind);
   dialog.hidden = false;
   $('#snag-note').focus();
@@ -73,17 +135,16 @@ function closeSnag() {
 
 async function send() {
   const note = $('#snag-note').value;
-  const err = $('#snag-err');
-  if (!note.trim()) { err.textContent = 'Write what the snag is about.'; err.hidden = false; return; }
+  if (!note.trim() && !files.length) return showErr('Write what the snag is about, or attach a file.');
   const btn = $('#snag-send');
   btn.disabled = true;
   try {
-    const { ref } = await apiPostJson('/api/hos/snag', { kind, text: snagText(note, S.meta, dialog.dataset.path) });
+    const sent = await Promise.all(files.map(async (f, i) => ({ name: f.name || 'pasted-' + (i + 1), data: await toBase64(f) })));
+    const { ref } = await apiPostJson('/api/hos/snag', { kind, text: snagText(note, S.meta, dialog.dataset.path), files: sent });
     closeSnag();
     showToast('✓', 'Marked ' + ref + ' in hos');
   } catch (e) {
-    err.textContent = e.message;
-    err.hidden = false;
+    showErr(e.message);
   } finally {
     btn.disabled = false;
   }

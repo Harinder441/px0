@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -22,7 +23,12 @@ type hosLink struct {
 	client *http.Client
 }
 
-const hosSnagTextMax = 20000
+const (
+	hosSnagTextMax  = 20000
+	hosSnagFilesMax = 10
+	// hos takes at most 25 MB of files; base64 grows that by 4/3, plus room for the text.
+	hosSnagBodyMax = 35 << 20
+)
 
 func hosEnvPath() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
@@ -71,7 +77,7 @@ func loadHosLink(getenv func(string) string, envFile string) *hosLink {
 	if url == "" || token == "" {
 		return nil
 	}
-	return &hosLink{url: strings.TrimRight(url, "/"), token: token, client: &http.Client{Timeout: 5 * time.Second}}
+	return &hosLink{url: strings.TrimRight(url, "/"), token: token, client: &http.Client{Timeout: 30 * time.Second}}
 }
 
 // handleHosSnag forwards a snag to hos server-side, so the browser never needs
@@ -91,10 +97,16 @@ func (s *Server) handleHosSnag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Kind string `json:"kind"`
-		Text string `json:"text"`
+		Kind  string            `json:"kind"`
+		Text  string            `json:"text"`
+		Files []json.RawMessage `json:"files,omitempty"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&in); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, hosSnagBodyMax)).Decode(&in); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			fail(w, http.StatusRequestEntityTooLarge, "snag files are at most 25 MB in total")
+			return
+		}
 		fail(w, http.StatusBadRequest, "bad JSON")
 		return
 	}
@@ -103,8 +115,12 @@ func (s *Server) handleHosSnag(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "kind must be task or question")
 		return
 	}
-	if in.Text == "" || len(in.Text) > hosSnagTextMax {
-		fail(w, http.StatusBadRequest, "a snag needs text (at most 20000 characters)")
+	if (in.Text == "" && len(in.Files) == 0) || len(in.Text) > hosSnagTextMax {
+		fail(w, http.StatusBadRequest, "a snag needs text (at most 20000 characters) or a file")
+		return
+	}
+	if len(in.Files) > hosSnagFilesMax {
+		fail(w, http.StatusBadRequest, "a snag holds at most 10 files")
 		return
 	}
 	body, _ := json.Marshal(in)
