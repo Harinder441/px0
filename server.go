@@ -70,6 +70,22 @@ type Server struct {
 	hosReview  atomic.Bool // set while a review session forwards draft comments to hos (hos.go)
 
 	lastReq atomic.Int64 // unix nanos of the most recent request
+
+	// streamsDone closes when the HTTP server starts shutting down, so event
+	// streams end their responses cleanly instead of being cut when we exit.
+	streamsDone chan struct{}
+	endStreams  sync.Once
+}
+
+// EndStreams ends every open event stream. Register it with
+// http.Server.RegisterOnShutdown: Shutdown does not cancel request contexts,
+// so streams would otherwise hold it up until its deadline.
+func (s *Server) EndStreams() {
+	s.endStreams.Do(func() {
+		if s.streamsDone != nil {
+			close(s.streamsDone)
+		}
+	})
 }
 
 // BasePath returns the URL path prefix configured for this server (e.g. "/" or "/rev-123/").
@@ -200,7 +216,7 @@ func NewServer(ix *Index, lsp *lspManager, basePaths ...string) *Server {
 	if len(basePaths) > 0 && basePaths[0] != "" {
 		bp = cleanBasePath(basePaths[0])
 	}
-	s := &Server{ix: ix, lsp: lsp, diffBase: "HEAD", basePath: bp, mux: http.NewServeMux(), hos: loadHosLink(os.Getenv, hosEnvPath())}
+	s := &Server{ix: ix, lsp: lsp, diffBase: "HEAD", basePath: bp, mux: http.NewServeMux(), streamsDone: make(chan struct{}), hos: loadHosLink(os.Getenv, hosEnvPath())}
 	s.session = newSessionManager(s.basePath, ix.Root())
 	s.gitWatcher = NewGitWatcher(ix)
 	s.gitWatcher.Start(context.Background())
@@ -1472,6 +1488,8 @@ func (s *Server) handleEventStream(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-s.streamsDone:
 			return
 
 		case msg, ok := <-gitCh:
