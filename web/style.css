@@ -1141,6 +1141,29 @@ body.word-wrap .c { white-space: pre-wrap; word-break: break-word; overflow-wrap
 .diff-row.diff-del, .diff-side.diff-del { background: var(--gd-bg); }
 .diff-row.diff-del .diff-mk, .diff-side.diff-del .diff-mk { color: var(--gd); }
 .diff-side.diff-blank { background: var(--bg2); }
+.diff-char-add {
+  background: color-mix(in srgb, var(--gi) 38%, transparent);
+  border-radius: 2px;
+}
+.diff-char-del {
+  background: color-mix(in srgb, var(--gd) 38%, transparent);
+  border-radius: 2px;
+}
+.diff-char-bar-del,
+.diff-char-bar-add {
+  display: inline-block;
+  width: 2px;
+  height: 1.15em;
+  vertical-align: -0.18em;
+  margin: 0 1px;
+  border-radius: 1px;
+}
+.diff-char-bar-del {
+  background: color-mix(in srgb, var(--gd) 50%, transparent);
+}
+.diff-char-bar-add {
+  background: color-mix(in srgb, var(--gi) 50%, transparent);
+}
 /* Split: deletions and additions paired side by side, each half its own mini-row. */
 .diff-row-pair { display: flex; }
 .diff-side { flex: 1 1 50%; min-width: 0; }
