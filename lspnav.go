@@ -1,12 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"regexp"
 	"sort"
 	"strings"
-	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -33,7 +33,11 @@ func utf16ToByte(line string, u16 int) int {
 		if units >= u16 {
 			break
 		}
-		units += len(utf16.Encode([]rune{r}))
+		if r >= 0x10000 {
+			units += 2
+		} else {
+			units++
+		}
 		bytes += utf8.RuneLen(r)
 	}
 	if bytes > len(line) {
@@ -71,10 +75,6 @@ func (m *lspManager) resolve(c *lspClient, locs []lspLocation, markDef bool) []N
 	var out []NavHit
 	for _, k := range order {
 		d, err := Open(k.abs, k.rel)
-		var lines []string
-		if err == nil {
-			lines = d.RawLines()
-		}
 		ranges := byFile[k]
 		sort.Slice(ranges, func(i, j int) bool {
 			if ranges[i].Start.Line != ranges[j].Start.Line {
@@ -84,19 +84,21 @@ func (m *lspManager) resolve(c *lspClient, locs []lspLocation, markDef bool) []N
 		})
 		seen := map[int]bool{}
 		for _, r := range ranges {
-			line, from := c.fromLSP(lines, r.Start)
+			line := r.Start.Line + 1
 			if seen[line] {
 				continue // one entry per line keeps the list readable
 			}
 			seen[line] = true
 
 			text := ""
-			if line-1 >= 0 && line-1 < len(lines) {
-				text = lines[line-1]
+			from := 0
+			if err == nil && d != nil && r.Start.Line >= 0 && r.Start.Line < d.Total {
+				text = d.Raw(line)
+				_, from = c.fromLSPLine(text, r.Start)
 			}
 			to := from
-			if r.End.Line == r.Start.Line {
-				_, to = c.fromLSP(lines, r.End)
+			if r.End.Line == r.Start.Line && err == nil && d != nil && r.End.Line >= 0 && r.End.Line < d.Total {
+				_, to = c.fromLSPLine(text, r.End)
 			}
 			if to <= from || to > len(text) {
 				to = len(text)
@@ -114,6 +116,30 @@ func (m *lspManager) resolve(c *lspClient, locs []lspLocation, markDef bool) []N
 	return out
 }
 
+type lspLocationOrLink struct {
+	URI                  string    `json:"uri"`
+	Range                lspRange  `json:"range"`
+	TargetURI            string    `json:"targetUri"`
+	TargetRange          *lspRange `json:"targetRange"`
+	TargetSelectionRange *lspRange `json:"targetSelectionRange"`
+}
+
+func (l lspLocationOrLink) toLocation() (lspLocation, bool) {
+	if l.URI != "" {
+		return lspLocation{URI: l.URI, Range: l.Range}, true
+	}
+	if l.TargetURI != "" {
+		if l.TargetSelectionRange != nil {
+			return lspLocation{URI: l.TargetURI, Range: *l.TargetSelectionRange}, true
+		}
+		if l.TargetRange != nil {
+			return lspLocation{URI: l.TargetURI, Range: *l.TargetRange}, true
+		}
+		return lspLocation{URI: l.TargetURI}, true
+	}
+	return lspLocation{}, false
+}
+
 // locate runs one position-based request and normalises the two shapes a server
 // may answer with (Location or LocationLink).
 func (m *lspManager) locate(ctx context.Context, method, abs, rel string, line, u16col int, extra map[string]any) ([]NavHit, error) {
@@ -129,38 +155,44 @@ func (m *lspManager) locate(ctx context.Context, method, abs, rel string, line, 
 	if err != nil {
 		return nil, err
 	}
-	byteCol := utf16ToByte(d.Raw(line), u16col)
+	rawLine := d.Raw(line)
+	byteCol := utf16ToByte(rawLine, u16col)
 
 	params := map[string]any{
 		"textDocument": map[string]any{"uri": pathToURI(abs)},
-		"position":     c.toLSP(d.Raw(line), line, byteCol),
+		"position":     c.toLSP(rawLine, line, byteCol),
 	}
 	for k, v := range extra {
 		params[k] = v
 	}
 
-	var raw []map[string]any
-	if err := c.call(ctx, method, params, &raw); err != nil {
-		// A single Location, not an array, is also legal.
-		var one lspLocation
-		if err2 := c.call(ctx, method, params, &one); err2 != nil || one.URI == "" {
+	var rawMsg json.RawMessage
+	if err := c.call(ctx, method, params, &rawMsg); err != nil {
+		return nil, err
+	}
+	trimmed := bytes.TrimSpace(rawMsg)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return []NavHit{}, nil
+	}
+	if trimmed[0] == '{' {
+		var one lspLocationOrLink
+		if err := json.Unmarshal(trimmed, &one); err != nil {
 			return nil, err
 		}
-		return m.resolve(c, []lspLocation{one}, method != "textDocument/references"), nil
+		if loc, ok := one.toLocation(); ok {
+			return m.resolve(c, []lspLocation{loc}, method != "textDocument/references"), nil
+		}
+		return []NavHit{}, nil
 	}
 
-	locs := make([]lspLocation, 0, len(raw))
-	for _, item := range raw {
-		if uri, ok := item["uri"].(string); ok {
-			locs = append(locs, lspLocation{URI: uri, Range: decodeRange(item["range"])})
-			continue
-		}
-		if uri, ok := item["targetUri"].(string); ok {
-			rng := item["targetSelectionRange"]
-			if rng == nil {
-				rng = item["targetRange"]
-			}
-			locs = append(locs, lspLocation{URI: uri, Range: decodeRange(rng)})
+	var items []lspLocationOrLink
+	if err := json.Unmarshal(trimmed, &items); err != nil {
+		return nil, err
+	}
+	locs := make([]lspLocation, 0, len(items))
+	for _, item := range items {
+		if loc, ok := item.toLocation(); ok {
+			locs = append(locs, loc)
 		}
 	}
 	return m.resolve(c, locs, method != "textDocument/references"), nil

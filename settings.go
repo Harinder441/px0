@@ -377,15 +377,21 @@ func readSettings() settings {
 
 func readSettingsLocked() settings {
 	var s settings
-	raw := readSettingsRawMap()
-	if len(raw) == 0 {
+	p := settingsPath()
+	if p == "" {
+		return s
+	}
+	data, err := os.ReadFile(p)
+	if err != nil || len(data) == 0 {
+		return s
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil || len(raw) == 0 {
 		return s
 	}
 
-	// Unmarshal known typed fields
-	if b, err := json.Marshal(raw); err == nil {
-		_ = json.Unmarshal(b, &s)
-	}
+	// Unmarshal known typed fields directly from data without re-marshaling raw
+	_ = json.Unmarshal(data, &s)
 
 	// Bi-directional bridge between agent <-> agent.harness
 	if s.Agent == "" {

@@ -22,6 +22,32 @@ func fuzzyScore(q, origQ string, e *FileEntry, pos []int) (int, []int, bool) {
 	return fuzzy.Score(q, origQ, e.Path, e.lower, e.nameStart, pos)
 }
 
+func worseFuzzy(a, b FuzzyResult) bool {
+	if a.Score != b.Score {
+		return a.Score < b.Score
+	}
+	return a.Path > b.Path
+}
+
+func siftDownFuzzy(h []FuzzyResult, i int) {
+	n := len(h)
+	for {
+		left := 2*i + 1
+		if left >= n {
+			break
+		}
+		smallest := left
+		if right := left + 1; right < n && worseFuzzy(h[right], h[left]) {
+			smallest = right
+		}
+		if !worseFuzzy(h[smallest], h[i]) {
+			break
+		}
+		h[i], h[smallest] = h[smallest], h[i]
+		i = smallest
+	}
+}
+
 // FuzzyFind ranks every indexed path against query and returns the best limit.
 func FuzzyFind(files []FileEntry, query string, limit int) []FuzzyResult {
 	origQ := strings.ReplaceAll(strings.TrimSpace(query), " ", "")
@@ -39,11 +65,15 @@ func FuzzyFind(files []FileEntry, query string, limit int) []FuzzyResult {
 	}
 
 	workers := runtime.NumCPU()
+	if len(files) < 1024 {
+		workers = 1
+	}
 	chunk := (len(files) + workers - 1) / workers
 	if chunk == 0 {
 		chunk = 1
 	}
 	parts := make([][]FuzzyResult, workers)
+	qLen := len(q)
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		lo := w * chunk
@@ -54,11 +84,38 @@ func FuzzyFind(files []FileEntry, query string, limit int) []FuzzyResult {
 		wg.Add(1)
 		go func(w, lo, hi int) {
 			defer wg.Done()
-			local := make([]FuzzyResult, 0, 64)
-			scratch := make([]int, 0, 64)
+			capLimit := limit
+			if capLimit <= 0 || capLimit > hi-lo {
+				capLimit = min(64, hi-lo)
+			}
+			local := make([]FuzzyResult, 0, capLimit)
+			var posSlab []int
+			if limit > 0 {
+				posSlab = make([]int, limit*qLen)
+			}
+			scratch := make([]int, 0, max(64, qLen))
 			for i := lo; i < hi; i++ {
 				s, pos, ok := fuzzy.Score(q, origQ, files[i].Path, files[i].lower, files[i].nameStart, scratch)
 				if !ok {
+					continue
+				}
+				if limit > 0 {
+					if len(local) < limit {
+						slot := len(local)
+						cp := posSlab[slot*qLen : (slot+1)*qLen]
+						copy(cp, pos)
+						local = append(local, FuzzyResult{Path: files[i].Path, Name: files[i].Name, Pos: cp, Score: s})
+						if len(local) == limit {
+							for k := limit/2 - 1; k >= 0; k-- {
+								siftDownFuzzy(local, k)
+							}
+						}
+					} else if s > local[0].Score || (s == local[0].Score && files[i].Path < local[0].Path) {
+						cp := local[0].Pos
+						copy(cp, pos)
+						local[0] = FuzzyResult{Path: files[i].Path, Name: files[i].Name, Pos: cp, Score: s}
+						siftDownFuzzy(local, 0)
+					}
 					continue
 				}
 				cp := make([]int, len(pos))
@@ -70,7 +127,11 @@ func FuzzyFind(files []FileEntry, query string, limit int) []FuzzyResult {
 	}
 	wg.Wait()
 
-	var all []FuzzyResult
+	total := 0
+	for _, p := range parts {
+		total += len(p)
+	}
+	all := make([]FuzzyResult, 0, total)
 	for _, p := range parts {
 		all = append(all, p...)
 	}
@@ -80,7 +141,7 @@ func FuzzyFind(files []FileEntry, query string, limit int) []FuzzyResult {
 		}
 		return all[i].Path < all[j].Path
 	})
-	if len(all) > limit {
+	if limit > 0 && len(all) > limit {
 		all = all[:limit]
 	}
 	return all

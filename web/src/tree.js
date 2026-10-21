@@ -140,25 +140,34 @@ export async function refreshTree() {
   const isCurrent = () => version === expansionVersion;
   setExpandBusy(false);
   if (!(await drawTree('', treeEl, 0, isCurrent))) return;
-  const dirs = Array.from(openDirs).sort((a, b) => a.split('/').length - b.split('/').length);
-  for (const path of dirs) {
+  const byDepth = new Map();
+  for (const path of openDirs) {
+    const depth = path.split('/').length;
+    if (!byDepth.has(depth)) byDepth.set(depth, []);
+    byDepth.get(depth).push(path);
+  }
+  const depths = Array.from(byDepth.keys()).sort((a, b) => a - b);
+  for (const depth of depths) {
     if (!isCurrent()) return;
-    const dirRow = treeEl.querySelector('[data-dir="' + CSS.escape(path) + '"]');
-    const kids = treeEl.querySelector('[data-kids="' + CSS.escape(path) + '"]');
-    if (kids && dirRow) {
-      dirRow.classList.add('open');
-      kids.classList.add('open');
-      const loaded = await drawTree(path, kids, path.split('/').length, isCurrent);
+    await Promise.all(byDepth.get(depth).map(async path => {
       if (!isCurrent()) return;
-      if (loaded) kids.dataset.loaded = '1';
-      else {
-        dirRow.classList.remove('open');
-        kids.classList.remove('open');
+      const dirRow = treeEl.querySelector('[data-dir="' + CSS.escape(path) + '"]');
+      const kids = treeEl.querySelector('[data-kids="' + CSS.escape(path) + '"]');
+      if (kids && dirRow) {
+        dirRow.classList.add('open');
+        kids.classList.add('open');
+        const loaded = await drawTree(path, kids, depth, isCurrent);
+        if (!isCurrent()) return;
+        if (loaded) kids.dataset.loaded = '1';
+        else {
+          dirRow.classList.remove('open');
+          kids.classList.remove('open');
+          openDirs.delete(path);
+        }
+      } else {
         openDirs.delete(path);
       }
-    } else {
-      openDirs.delete(path);
-    }
+    }));
   }
   if (isCurrent() && treeEl.classList.contains('changed-only')) {
     await expandDirtyDirs();

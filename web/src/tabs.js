@@ -428,6 +428,11 @@ export function closeTab(i) {
   closeTabs([i]);
 }
 
+export function closeAllTabs() {
+  if (!S.tabs.length) return;
+  closeTabs(S.tabs.map((_, idx) => idx));
+}
+
 function closeTabs(indices) {
   if (!indices.length) return;
   // Descending indices stay valid as tabs are removed.

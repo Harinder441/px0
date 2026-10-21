@@ -628,6 +628,8 @@ func (s *Server) agentHarnesses() []agentHarness {
 	return s.agent.Detect()
 }
 
+var baseHrefRe = regexp.MustCompile(`<base\s+href="[^"]*">`)
+
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	expected := s.BasePath()
 	if r.URL.Path != expected && r.URL.Path != strings.TrimSuffix(expected, "/") {
@@ -642,8 +644,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	html := string(b)
 	baseTag := fmt.Sprintf(`<base href="%s">`, expected)
 	if strings.Contains(html, "<base ") {
-		re := regexp.MustCompile(`<base\s+href="[^"]*">`)
-		html = re.ReplaceAllString(html, baseTag)
+		html = baseHrefRe.ReplaceAllString(html, baseTag)
 	} else if idx := strings.Index(html, "<head>"); idx != -1 {
 		html = html[:idx+6] + "\n" + baseTag + html[idx+6:]
 	} else {
@@ -653,27 +654,40 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, html)
 }
 
+var (
+	themesCSSOnce sync.Once
+	themesCSSBody string
+	themesCSSErr  error
+)
+
 // handleThemes joins web/themes/*.css into one stylesheet in file name order, so
 // adding a theme means adding a file: there is no list to keep in sync.
 func (s *Server) handleThemes(w http.ResponseWriter, r *http.Request) {
-	names, err := fs.Glob(assets, "web/themes/*.css")
-	if err != nil {
-		fail(w, 500, err.Error())
-		return
-	}
-	var css strings.Builder
-	for _, name := range names {
-		b, err := fs.ReadFile(assets, name)
+	themesCSSOnce.Do(func() {
+		names, err := fs.Glob(assets, "web/themes/*.css")
 		if err != nil {
-			fail(w, 500, err.Error())
+			themesCSSErr = err
 			return
 		}
-		css.WriteString("/* " + strings.TrimPrefix(name, "web/") + " */\n")
-		css.Write(b)
-		css.WriteString("\n")
+		var css strings.Builder
+		for _, name := range names {
+			b, err := fs.ReadFile(assets, name)
+			if err != nil {
+				themesCSSErr = err
+				return
+			}
+			css.WriteString("/* " + strings.TrimPrefix(name, "web/") + " */\n")
+			css.Write(b)
+			css.WriteString("\n")
+		}
+		themesCSSBody = css.String()
+	})
+	if themesCSSErr != nil {
+		fail(w, 500, themesCSSErr.Error())
+		return
 	}
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	io.WriteString(w, css.String())
+	io.WriteString(w, themesCSSBody)
 }
 
 func staticContentType(p string) string {
@@ -1206,6 +1220,8 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 			// working-tree check below can't vouch for it. Its commit diff can.
 			if ref := q.Get("ref"); ref != "" {
 				diffAvail = gitDiffCommit(s.ix.Root(), rel, ref) != ""
+			} else if avail, ok := s.ix.HasDiffAvailable(rel, s.diffBase, s.pr != nil); ok {
+				diffAvail = avail
 			} else if s.pr != nil {
 				diffAvail = gitDiffAgainst(s.ix.Root(), rel, s.diffBase) != "" ||
 					gitDiffBetween(s.ix.Root(), rel, s.diffBase, s.prHeadSHA) != "" ||
@@ -1269,6 +1285,8 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 			// Pinned to one commit: what matters is whether that commit touched
 			// the file, not whether the working tree has since diverged.
 			diffAvail = gitDiffCommit(s.ix.Root(), rel, ref) != ""
+		} else if avail, ok := s.ix.HasDiffAvailable(rel, s.diffBase, s.pr != nil); ok {
+			diffAvail = avail
 		} else if s.pr != nil {
 			diffAvail = gitDiffAgainst(s.ix.Root(), rel, s.diffBase) != "" ||
 				gitDiffBetween(s.ix.Root(), rel, s.diffBase, s.prHeadSHA) != "" ||
@@ -1297,7 +1315,6 @@ func (s *Server) handleClose(w http.ResponseWriter, r *http.Request) {
 	}
 	Evict(abs)
 	s.lsp.CloseDoc(abs, rel)
-	debug.FreeOSMemory()
 	writeJSON(w, map[string]any{"ok": true, "path": rel})
 }
 

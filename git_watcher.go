@@ -50,10 +50,17 @@ type GitWatcher struct {
 	lastIndexMod   time.Time
 	lastIndexSize  int64
 	lastHeadMod    time.Time
+	lastLogsMod    time.Time
+	lastFetchMod   time.Time
 	lastPackedMod  time.Time
 	lastHeadCommit string
 	lastAhead      int
 	lastBehind     int
+	lastPushedHead string
+	lastBranch     string
+	lastCommits    []GitCommit
+	lastCommitsURL string
+	hasMetaCache   bool
 }
 
 // NewGitWatcher constructs a new GitWatcher attached to the given workspace index.
@@ -128,6 +135,22 @@ func (gw *GitWatcher) recordGitMeta(gitdir string) bool {
 		}
 	}
 
+	logsHeadPath := filepath.Join(gitdir, "logs", "HEAD")
+	if fi, err := os.Stat(logsHeadPath); err == nil {
+		if fi.ModTime() != gw.lastLogsMod {
+			gw.lastLogsMod = fi.ModTime()
+			changed = true
+		}
+	}
+
+	fetchHeadPath := filepath.Join(gitdir, "FETCH_HEAD")
+	if fi, err := os.Stat(fetchHeadPath); err == nil {
+		if fi.ModTime() != gw.lastFetchMod {
+			gw.lastFetchMod = fi.ModTime()
+			changed = true
+		}
+	}
+
 	return changed
 }
 
@@ -160,7 +183,10 @@ func (gw *GitWatcher) loop(ctx context.Context, gitdir string) {
 			// Worktree path: check for modifications in files outside git CLI.
 			// Only run when at least one client is actively listening.
 			if gw.active.Load() > 0 {
-				dur := gw.checkAndBroadcast()
+				metaDirty := gw.recordGitMeta(gitdir)
+				start := time.Now()
+				gw.refreshInternal(!metaDirty)
+				dur := time.Since(start)
 				// Adapt interval based on execution speed: min 1s, max 10s.
 				newInterval := dur * 5
 				if newInterval < 1*time.Second {
@@ -193,29 +219,56 @@ func (gw *GitWatcher) loop(ctx context.Context, gitdir string) {
 // Refresh runs an immediate UpdateGitStatus, broadcasts to subscribers if changed,
 // and returns the latest git status payload.
 func (gw *GitWatcher) Refresh() GitStatusPayload {
+	return gw.refreshInternal(false)
+}
+
+func (gw *GitWatcher) refreshInternal(worktreeOnly bool) GitStatusPayload {
 	count, files, changed, statuses, dirtyDirs, staged, yourStatuses, yourDirtyDirs := gw.ix.UpdateGitStatus()
 	var recentCommits []GitCommit
 	var ahead, behind int
-	if gitAvailable(gw.root) {
-		recentCommits = gitRecentCommits(gw.root, 5)
-		headCommit := ""
-		if len(recentCommits) > 0 {
-			headCommit = recentCommits[0].Hash
-		}
-		ahead, behind = gw.aheadBehind()
+	var branch, commitsURL string
+	inGit := gitAvailable(gw.root)
+	if inGit {
+		pushedHead := gw.ix.PushedHead()
 		gw.mu.Lock()
-		if headCommit != gw.lastHeadCommit || ahead != gw.lastAhead || behind != gw.lastBehind {
-			gw.lastHeadCommit = headCommit
-			gw.lastAhead = ahead
-			gw.lastBehind = behind
-			changed = true
+		canReuseMeta := worktreeOnly && gw.hasMetaCache && gw.lastPushedHead == pushedHead
+		if canReuseMeta {
+			recentCommits = gw.lastCommits
+			ahead = gw.lastAhead
+			behind = gw.lastBehind
+			branch = gw.lastBranch
+			commitsURL = gw.lastCommitsURL
 		}
 		gw.mu.Unlock()
+
+		if !canReuseMeta {
+			recentCommits = gitRecentCommits(gw.root, 5)
+			headCommit := ""
+			if len(recentCommits) > 0 {
+				headCommit = recentCommits[0].Hash
+			}
+			ahead, behind = gw.aheadBehind()
+			branch = gitCurrentBranch(gw.root)
+			commitsURL = gitCommitsWebURL(gw.root, branch)
+
+			gw.mu.Lock()
+			if headCommit != gw.lastHeadCommit || ahead != gw.lastAhead || behind != gw.lastBehind {
+				gw.lastHeadCommit = headCommit
+				gw.lastAhead = ahead
+				gw.lastBehind = behind
+				changed = true
+			}
+			gw.lastPushedHead = pushedHead
+			gw.lastBranch = branch
+			gw.lastCommits = recentCommits
+			gw.lastCommitsURL = commitsURL
+			gw.hasMetaCache = true
+			gw.mu.Unlock()
+		}
 	}
 
-	branch := gitCurrentBranch(gw.root)
 	payload := GitStatusPayload{
-		Git:           gitAvailable(gw.root),
+		Git:           inGit,
 		GitChanges:    count,
 		GitFiles:      files,
 		Statuses:      statuses,
@@ -225,7 +278,7 @@ func (gw *GitWatcher) Refresh() GitStatusPayload {
 		YourDirtyDirs: yourDirtyDirs,
 		Branch:        branch,
 		RecentCommits: recentCommits,
-		CommitsURL:    gitCommitsWebURL(gw.root, branch),
+		CommitsURL:    commitsURL,
 		Ahead:         ahead,
 		Behind:        behind,
 	}

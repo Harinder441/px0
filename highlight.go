@@ -109,14 +109,46 @@ func classFor(t chroma.TokenType) string {
 
 var htmlEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
+func writeHTMLEscaped(b *strings.Builder, s string) {
+	last := 0
+	for i := 0; i < len(s); i++ {
+		var esc string
+		switch s[i] {
+		case '&':
+			esc = "&amp;"
+		case '<':
+			esc = "&lt;"
+		case '>':
+			esc = "&gt;"
+		default:
+			continue
+		}
+		b.WriteString(s[last:i])
+		b.WriteString(esc)
+		last = i + 1
+	}
+	b.WriteString(s[last:])
+}
+
 // visualWidth counts runes, expanding tabs to the 4-column stops the UI uses.
 func visualWidth(s string) int {
 	n := 0
-	for _, r := range s {
-		if r == '\t' {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '\t' {
 			n += 4 - n%4
-		} else {
+		} else if c < 0x80 {
 			n++
+		} else {
+			// Multibyte UTF-8 fallback from current position
+			for _, r := range s[i:] {
+				if r == '\t' {
+					n += 4 - n%4
+				} else {
+					n++
+				}
+			}
+			return n
 		}
 	}
 	return n
@@ -148,17 +180,24 @@ type Doc struct {
 }
 
 func newDoc(src, rel string) *Doc {
-	raw := strings.Split(src, "\n")
+	total := strings.Count(src, "\n") + 1
 	d := &Doc{
-		src: src, Total: len(raw), chunks: map[int][]string{},
-		lineOff: make([]int, len(raw)+1),
+		src: src, Total: total, chunks: map[int][]string{},
+		lineOff: make([]int, total+1),
 		// Source plus line table. Rendered chunks are charged as they appear.
-		bytes: len(src) + len(raw)*32,
+		bytes: len(src) + total*32,
 	}
 	off := 0
-	for i, l := range raw {
+	for i := 0; i < total; i++ {
 		d.lineOff[i] = off
-		off += len(l) + 1
+		var l string
+		if nl := strings.IndexByte(src[off:], '\n'); nl >= 0 {
+			l = src[off : off+nl]
+			off += nl + 1
+		} else {
+			l = src[off:]
+			off = len(src) + 1
+		}
 		if n := visualWidth(l); n > d.MaxCols {
 			d.MaxCols = n
 		}
@@ -166,11 +205,15 @@ func newDoc(src, rel string) *Doc {
 	if d.MaxCols > maxReportedCols {
 		d.MaxCols = maxReportedCols
 	}
-	d.lineOff[len(raw)] = len(src)
+	d.lineOff[total] = len(src)
 
 	d.lexer = lexers.Match(filepath.Base(rel))
 	if d.lexer == nil {
-		d.lexer = lexers.Analyse(src)
+		sample := src
+		if len(sample) > 4096 {
+			sample = sample[:4096]
+		}
+		d.lexer = lexers.Analyse(sample)
 	}
 	if d.lexer == nil {
 		d.Lang = "plain text"
@@ -220,9 +263,9 @@ func (d *Doc) Lines(start, end int) ([]string, bool) {
 	if end > d.Total {
 		end = d.Total
 	}
-	// Kick the background pass before serving, so a client that reads a whole
-	// file sequentially converges instead of window-lexing every chunk.
-	if len(d.src) <= bgLimit {
+	// Single-chunk files within the window byte cap are lexed in full by chunk(0),
+	// so only multi-chunk files need a separate background full-file pass.
+	if d.Total > hlChunk && len(d.src) <= bgLimit {
 		d.bgOnce.Do(func() { go d.backgroundPass() })
 	}
 	if start >= end {
@@ -301,6 +344,10 @@ func (d *Doc) chunk(c int) ([]string, bool) {
 		d.mu.Unlock()
 		return v, full
 	}
+	if c == 0 && d.Total <= hlChunk && len(seg) <= hlWindowBytes {
+		d.full = true
+		full = true
+	}
 	_, had := d.chunks[c]
 	d.chunks[c] = v
 	d.mu.Unlock()
@@ -358,13 +405,13 @@ func highlightLines(lexer chroma.Lexer, src string, want int) (out []string) {
 			return
 		}
 		if cls == "" {
-			b.WriteString(htmlEscaper.Replace(v))
+			writeHTMLEscaped(&b, v)
 			return
 		}
 		b.WriteString(`<i class=`)
 		b.WriteString(cls)
 		b.WriteByte('>')
-		b.WriteString(htmlEscaper.Replace(v))
+		writeHTMLEscaped(&b, v)
 		b.WriteString(`</i>`)
 	}
 

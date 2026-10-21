@@ -52,20 +52,34 @@ var declTemplates = map[string][]string{
 	"default": {`\b(?:func|function|def|class|type|struct|interface|enum|fn|const|let|var|module|trait|impl|package)\s+%s\b`},
 }
 
+var identRe = regexp.MustCompile(`^[A-Za-z_$][\w$]*$`)
+
+func compileDeclFamily(fam, q string) *regexp.Regexp {
+	tpls, ok := declTemplates[fam]
+	if !ok {
+		tpls = declTemplates["default"]
+	}
+	parts := make([]string, len(tpls))
+	for i, t := range tpls {
+		parts[i] = "(?:" + strings.ReplaceAll(t, "%s", q) + ")"
+	}
+	re, err := regexp.Compile(strings.Join(parts, "|"))
+	if err != nil {
+		return nil
+	}
+	return re
+}
+
 // declPatterns compiles, per extension, a regexp that recognises a line
 // declaring ident. Used to float definitions above references in search results.
 func declPatterns(ident string) map[string]*regexp.Regexp {
-	if !regexp.MustCompile(`^[A-Za-z_$][\w$]*$`).MatchString(ident) {
+	if !identRe.MatchString(ident) {
 		return nil
 	}
 	q := regexp.QuoteMeta(ident)
 	byFamily := map[string]*regexp.Regexp{}
-	for fam, tpls := range declTemplates {
-		parts := make([]string, len(tpls))
-		for i, t := range tpls {
-			parts[i] = "(?:" + strings.ReplaceAll(t, "%s", q) + ")"
-		}
-		if re, err := regexp.Compile(strings.Join(parts, "|")); err == nil {
+	for fam := range declTemplates {
+		if re := compileDeclFamily(fam, q); re != nil {
 			byFamily[fam] = re
 		}
 	}
@@ -181,10 +195,11 @@ func Outline(abs, rel string) ([]Symbol, error) {
 
 	rules := outlineRules[familyFor(ext)]
 	for line := 1; sc.Scan(); line++ {
-		text := sc.Text()
-		if text == "" || len(text) > 500 {
+		raw := sc.Bytes()
+		if len(raw) == 0 || len(raw) > 500 {
 			continue
 		}
+		text := string(raw)
 		for _, ru := range rules {
 			m := ru.re.FindStringSubmatch(text)
 			if m == nil || ru.name >= len(m) {

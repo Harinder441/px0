@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,3 +207,114 @@ func BenchmarkSearchLiteralInMemory(b *testing.B) {
 		_, _, _ = SearchContext(context.Background(), ix, opts)
 	}
 }
+
+func BenchmarkSearchDefWord(b *testing.B) {
+	root := b.TempDir()
+	missContent := strings.Repeat("package main\nfunc helperFunc(x int) int { return x + 1 }\n", 50)
+	for i := 0; i < 40; i++ {
+		_ = os.WriteFile(filepath.Join(root, fmt.Sprintf("miss_%d.go", i)), []byte(missContent), 0o644)
+	}
+	hitContent := "package main\nfunc TargetSymbolDef() string { return \"ok\" }\n"
+	_ = os.WriteFile(filepath.Join(root, "hit.go"), []byte(hitContent), 0o644)
+
+	ix := NewIndex(root)
+	ix.Build()
+
+	opts := SearchOpts{
+		Query:        "TargetSymbolDef",
+		Word:         true,
+		Case:         true,
+		classifyDefs: true,
+		MaxFiles:     50,
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _, _ = SearchContext(context.Background(), ix, opts)
+	}
+}
+
+func BenchmarkFuzzyFindShortQuery_50K(b *testing.B) {
+	files := generateFileEntries(50000)
+	query := "in"
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = FuzzyFind(files, query, 50)
+	}
+}
+
+func BenchmarkColdHighlight_Go(b *testing.B) {
+	src := strings.Repeat("func exampleLine(x int) int { return x * 2 }\n", 200)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		d := newDoc(src, "example.go")
+		_, _ = d.Lines(0, 300)
+	}
+}
+
+func BenchmarkUTF16ToByte(b *testing.B) {
+	line := "func handleRequest(w http.ResponseWriter, r *http.Request) { // 🎉🚀✨ status check }"
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = utf16ToByte(line, 68)
+	}
+}
+
+func BenchmarkLSPEnsureOpenAlreadyOpened(b *testing.B) {
+	cl, _ := lspRaceWireClient(b)
+	path := filepath.Join(b.TempDir(), "f.go")
+	content := []byte(strings.Repeat("package main\nfunc example() {}\n", 1024)) // ~32KB file
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		b.Fatal(err)
+	}
+	if err := cl.ensureOpen(path, "f.go"); err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if err := cl.ensureOpen(path, "f.go"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkSortNodes(b *testing.B) {
+	base := make([]Node, 64)
+	for i := range base {
+		base[i] = Node{
+			Name: fmt.Sprintf("File_%02d_Component.go", 64-i),
+			Path: fmt.Sprintf("pkg/File_%02d_Component.go", 64-i),
+			Dir:  i%5 == 0,
+		}
+	}
+	work := make([]Node, len(base))
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		copy(work, base)
+		sortNodes(work)
+	}
+}
+
+func BenchmarkHandleFileScrollChunk(b *testing.B) {
+	wd, err := os.Getwd()
+	if err != nil {
+		b.Fatal(err)
+	}
+	ix := NewIndex(wd)
+	ix.Build()
+	srv := &Server{ix: ix, lsp: newLSPManager(wd, false), diffBase: "HEAD"}
+	req := httptest.NewRequest(http.MethodGet, "/api/file?path=server.go&start=300&count=300", nil)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		w := httptest.NewRecorder()
+		srv.handleFile(w, req)
+	}
+}
+
