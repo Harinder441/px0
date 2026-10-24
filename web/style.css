@@ -2691,6 +2691,9 @@ body.hide-git-gutter .g-git, body.hide-git-gutter [class*="git-"] { display: non
 }
 .pr-draft-count { font: 11px var(--ui); color: var(--accent-fg); flex: none; }
 .pr-review-row { gap: 6px; }
+.pr-hos-review { display: flex; align-items: center; gap: 6px; flex: none; }
+.pr-hos-review[hidden], .pr-hos-review [hidden] { display: none; }
+.pr-hos-chat { display: flex; align-items: center; gap: 4px; font: 11px var(--ui); color: var(--fg2); white-space: nowrap; }
 .pr-review-body {
   flex: 1; min-width: 0; resize: none; height: 26px; padding: 4px 8px;
   font: 12px var(--mono); color: var(--fg); background: var(--bg);
@@ -3021,4 +3024,5 @@ body.hide-git-gutter .g-git, body.hide-git-gutter [class*="git-"] { display: non
   .tab { height: 40px; line-height: 40px; font-size: 13px; }
   .tab .x { width: 24px; height: 24px; }
   .tr { height: 34px; font-size: 14px; }
+  .pr-review-row { flex-wrap: wrap; }
 }

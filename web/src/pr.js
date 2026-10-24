@@ -138,6 +138,26 @@ function renderBar() {
   }
   const composeEl = $('#pr-issue-compose');
   if (composeEl) composeEl.hidden = false;
+  const hosReview = $('#pr-hos-review');
+  if (hosReview) {
+    hosReview.hidden = !S.meta?.hos;
+    $('#pr-hos-start').hidden = !!meta.hosReview;
+    $('#pr-hos-chat').parentElement.hidden = !!meta.hosReview;
+    $('#pr-hos-end').hidden = !meta.hosReview;
+  }
+}
+
+async function hosReviewAction(action) {
+  const chat = /** @type {HTMLInputElement|null} */ ($('#pr-hos-chat'))?.checked ?? false;
+  try {
+    const out = await apiPostJson('/api/hos/review', { action, chat });
+    meta = { ...meta, hosReview: action === 'start' };
+    renderBar();
+    if (action === 'end') showToast('✓', 'Review ended; hos sends the rest to the chat');
+    else showToast('✓', out.chatId ? 'Review session on: hos started a chat for this PR' : 'Review session on: comments go to the topic', 4000);
+  } catch (e) {
+    showToast('!', e.message || 'hos did not take the review');
+  }
 }
 
 export function nudgeGitHubToken() {
@@ -152,6 +172,8 @@ function wireBarButtons() {
   $('#pr-submit-approve')?.addEventListener('click', () => submitReview('APPROVE'));
   $('#pr-issue-compose-send')?.addEventListener('click', sendNewIssueComment);
   $('#pr-readonly-note')?.addEventListener('click', nudgeGitHubToken);
+  $('#pr-hos-start')?.addEventListener('click', () => hosReviewAction('start'));
+  $('#pr-hos-end')?.addEventListener('click', () => hosReviewAction('end'));
 }
 
 async function sendNewIssueComment() {
@@ -425,6 +447,8 @@ export function openCommentComposer(info) {
     try {
       const c = await apiPostJson('/api/pr/comments', { path: info.path, line, side, body });
       comments.push(c);
+      if (c.hosError) showToast('!', 'Kept as a draft, but hos refused it: ' + c.hosError, 5000);
+      else if (c.hosRef) showToast('✓', c.hosRef + ' sent to hos');
       expandedKeys.add('thread:' + threadKey(info.path, side, line));
       close();
       renderBar();

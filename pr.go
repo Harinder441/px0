@@ -469,6 +469,7 @@ func (s *Server) handlePRMeta(w http.ResponseWriter, r *http.Request) {
 		"headSHA":         p.meta.HeadSHA,
 		"url":             p.target.URL,
 		"files":           s.ix.PRFiles(),
+		"hosReview":       s.hosReview.Load(),
 	})
 }
 
@@ -604,7 +605,24 @@ func (s *Server) handlePRComments(w http.ResponseWriter, r *http.Request) {
 			s.session.Update(func(ws *WorkspaceSession) { ws.Drafts = p.comments })
 		}
 		p.mu.Unlock()
-		writeJSON(w, c)
+		if !s.hosReview.Load() {
+			writeJSON(w, c)
+			return
+		}
+		out := struct {
+			prComment
+			HosRef   string `json:"hosRef,omitempty"`
+			HosError string `json:"hosError,omitempty"`
+		}{prComment: c}
+		var sent struct {
+			Ref string `json:"ref"`
+		}
+		if err := s.postHosReview(r.Context(), map[string]any{"action": "comment", "pr": p.target.URL, "path": c.Path, "line": c.Line, "side": c.Side, "body": c.Body}, &sent); err != nil {
+			out.HosError = err.Error()
+		} else {
+			out.HosRef = sent.Ref
+		}
+		writeJSON(w, out)
 	default:
 		fail(w, http.StatusMethodNotAllowed, "method not allowed")
 	}

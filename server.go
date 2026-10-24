@@ -66,7 +66,8 @@ type Server struct {
 	mux        *http.ServeMux
 	basePath   string
 	session    *sessionManager
-	hos        *hosLink // nil unless an hos daemon is configured (hos.go)
+	hos        *hosLink    // nil unless an hos daemon is configured (hos.go)
+	hosReview  atomic.Bool // set while a review session forwards draft comments to hos (hos.go)
 
 	lastReq atomic.Int64 // unix nanos of the most recent request
 }
@@ -186,6 +187,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc(s.routePath("/api/session"), s.handleSession)
 	s.mux.HandleFunc(s.routePath("/api/reveal"), s.handleReveal)
 	s.mux.HandleFunc(s.routePath("/api/hos/snag"), s.handleHosSnag)
+	s.mux.HandleFunc(s.routePath("/api/hos/review"), s.handleHosReview)
 }
 
 // NewServer creates and initializes a px0 Server instance, binding index and language servers,
@@ -904,6 +906,7 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 			"headSHA":         p.meta.HeadSHA,
 			"url":             p.target.URL,
 			"files":           s.ix.PRFiles(),
+			"hosReview":       s.hosReview.Load(),
 		}
 		p.mu.Unlock()
 	}

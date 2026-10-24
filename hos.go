@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -151,4 +152,67 @@ func (s *Server) handleHosSnag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]string{"ref": out.Ref})
+}
+
+func (s *Server) postHosReview(ctx context.Context, payload map[string]any, out any) error {
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.hos.url+"/px0/review", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+s.hos.token)
+	res, err := s.hos.client.Do(req)
+	if err != nil {
+		return errors.New("hos did not answer at " + s.hos.url)
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
+	if res.StatusCode != http.StatusCreated {
+		var refusal struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(raw, &refusal) != nil || refusal.Error == "" {
+			refusal.Error = res.Status
+		}
+		return errors.New(refusal.Error)
+	}
+	if out != nil {
+		_ = json.Unmarshal(raw, out)
+	}
+	return nil
+}
+
+// handleHosReview turns a review session on or off; while on, new drafts also go to hos and never to GitHub.
+func (s *Server) handleHosReview(w http.ResponseWriter, r *http.Request) {
+	if s.hos == nil {
+		fail(w, http.StatusNotFound, "hos is not connected: set HOS_URL and HOS_PX0_TOKEN, or "+hosEnvPath())
+		return
+	}
+	if !s.prOrFail(w) {
+		return
+	}
+	if !localPost(w, r) {
+		return
+	}
+	var in struct {
+		Action string `json:"action"`
+		Chat   bool   `json:"chat"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in); err != nil || (in.Action != "start" && in.Action != "end") {
+		fail(w, http.StatusBadRequest, "action must be start or end")
+		return
+	}
+	p := s.pr
+	payload := map[string]any{"action": in.Action, "pr": p.target.URL}
+	if in.Action == "start" {
+		payload["head"], payload["chat"] = p.meta.HeadRef, in.Chat
+	}
+	var out map[string]any
+	if err := s.postHosReview(r.Context(), payload, &out); err != nil {
+		fail(w, http.StatusBadGateway, "hos refused: "+err.Error())
+		return
+	}
+	s.hosReview.Store(in.Action == "start")
+	writeJSON(w, out)
 }

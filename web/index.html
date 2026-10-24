@@ -119,6 +119,11 @@
       </div>
       <div class="pr-bar-row pr-review-row">
         <textarea id="pr-review-body" class="pr-review-body" rows="1" spellcheck="false" autocomplete="off" placeholder="Review summary / verdict comment (optional)..."></textarea>
+        <span id="pr-hos-review" class="pr-hos-review" hidden>
+          <label class="pr-hos-chat" title="hos starts a chat in this PR's topic that gets your comments three at a time"><input type="checkbox" id="pr-hos-chat" checked> Start a chat?</label>
+          <button id="pr-hos-start" class="footer-btn pr-btn-neutral" title="Send each new draft comment to this PR's hos topic instead of GitHub">Start review session</button>
+          <button id="pr-hos-end" class="footer-btn pr-btn-neutral" hidden title="Send the comments still waiting to the chat and stop forwarding">End review</button>
+        </span>
         <button id="pr-submit-comment" class="footer-btn pr-btn-neutral" title="Submit review with drafts, without approval or change requests">Submit Review</button>
         <button id="pr-submit-request-changes" class="footer-btn pr-btn-request-changes" hidden title="Request changes on this PR">Request Changes</button>
         <button id="pr-submit-approve" class="footer-btn pr-btn-approve" hidden title="Approve this PR">Approve</button>
