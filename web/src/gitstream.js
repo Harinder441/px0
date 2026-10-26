@@ -7,6 +7,7 @@ import { updateStatus, updateMetricsDisplay } from './status.js';
 import { updateGitPanel } from './gitpanel.js';
 import { refreshUnpushed } from './unpushed.js';
 import { updateScopeCounts } from './prscope.js';
+import { wokeFromSleep } from './wake.js';
 
 let eventSource = null;
 let reconnectTimer = null;
@@ -64,7 +65,7 @@ export function initGitStream() {
     lastTick = now;
 
     // 1. Laptop lid closed/reopened or OS sleep: delta > 3000ms (expected ~1000ms)
-    if (gap > 3000) {
+    if (wokeFromSleep(gap, document.visibilityState)) {
       handleWake();
       return;
     }
