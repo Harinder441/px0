@@ -65,7 +65,7 @@ function build() {
   return el;
 }
 
-function showErr(msg) {
+function showSnagErr(msg) {
   const err = $('#snag-err');
   err.textContent = msg;
   err.hidden = !msg;
@@ -73,10 +73,10 @@ function showErr(msg) {
 
 function addFiles(list) {
   const next = [...files, ...list];
-  if (next.length > FILES_MAX) return showErr('A snag holds at most ' + FILES_MAX + ' files.');
-  if (next.reduce((sum, f) => sum + f.size, 0) > BYTES_MAX) return showErr('Snag files are at most 25 MB in total.');
+  if (next.length > FILES_MAX) return showSnagErr('A snag holds at most ' + FILES_MAX + ' files.');
+  if (next.reduce((sum, f) => sum + f.size, 0) > BYTES_MAX) return showSnagErr('Snag files are at most 25 MB in total.');
   files = next;
-  showErr('');
+  showSnagErr('');
   renderFiles();
 }
 
@@ -120,7 +120,7 @@ export function openSnag(startKind = 'task') {
   const d = doc_();
   dialog.dataset.path = d?.path || '';
   $('#snag-where').textContent = snagText('', S.meta, d?.path || '').trim();
-  showErr('');
+  showSnagErr('');
   $('#snag-note').value = '';
   files = [];
   renderFiles();
@@ -135,7 +135,7 @@ function closeSnag() {
 
 async function send() {
   const note = $('#snag-note').value;
-  if (!note.trim() && !files.length) return showErr('Write what the snag is about, or attach a file.');
+  if (!note.trim() && !files.length) return showSnagErr('Write what the snag is about, or attach a file.');
   const btn = $('#snag-send');
   btn.disabled = true;
   try {
@@ -144,7 +144,7 @@ async function send() {
     closeSnag();
     showToast('✓', 'Marked ' + ref + ' in hos');
   } catch (e) {
-    showErr(e.message);
+    showSnagErr(e.message);
   } finally {
     btn.disabled = false;
   }
